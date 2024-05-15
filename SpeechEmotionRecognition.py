@@ -169,6 +169,16 @@ data_path.to_csv("data_path.csv",index=False)
 print(data_path.head())
 print("########### FINISHED PREPPIN DATA #############")
 
+#sns.countplot(x='Emotions', data=data_path, palette='Set3')  # Specify 'Set3' palette for different colors
+#plt.title('Count of Emotions', size=16)
+#plt.xlabel('Emotions', size=12)
+#plt.ylabel('Count', size=12)
+#sns.despine(top=True, right=True, left=False, bottom=False)
+#
+#plt.xticks(rotation=45)  # Rotate x-axis labels if needed
+#plt.tight_layout()  # Adjust layout to prevent clipping of labels
+#plt.show()
+
 
 ##################################################################### augmentation and feature extraction functions
 def noise(data):
@@ -195,18 +205,22 @@ def extract_features(data,sample_rate):
     # Chroma_stft
     stft = np.abs(librosa.stft(data))
     chroma_stft = np.mean(librosa.feature.chroma_stft(S=stft, sr=sample_rate).T, axis=0)
+    #print("stft shape: " + str(chroma_stft.shape))
     result = np.hstack((result, chroma_stft)) # stacking horizontally
 
     # MFCC
     mfcc = np.mean(librosa.feature.mfcc(y=data, sr=sample_rate).T, axis=0)
+    #print("mfcc shape: " + str(mfcc.shape))
     result = np.hstack((result, mfcc)) # stacking horizontally
 
     # Root Mean Square Value
     rms = np.mean(librosa.feature.rms(y=data).T, axis=0)
+    #print("rms shape: " + str(rms.shape))
     result = np.hstack((result, rms)) # stacking horizontally
 
     # MelSpectogram
     mel = np.mean(librosa.feature.melspectrogram(y=data, sr=sample_rate).T, axis=0)
+    #print("mel shape: " + str(mel.shape))
     result = np.hstack((result, mel)) # stacking horizontally
     
     return result
@@ -247,6 +261,7 @@ def get_features(path):
 #Features['labels'] = Y
 #Features.to_csv('features.csv', index=False)
 
+
 Features = pd.read_csv('features.csv')
 print(Features.head())
 print("#\nTHIS IS PRE PREPARED DATA FROM CSV, CHECK CODE\n#")
@@ -268,7 +283,6 @@ x_train.shape, y_train.shape, x_test.shape, y_test.shape
 # making our data compatible to model.
 x_train = np.expand_dims(x_train, axis=2)
 x_test = np.expand_dims(x_test, axis=2)
-x_train.shape, y_train.shape, x_test.shape, y_test.shape
 
 model=Sequential()
 model.add(Conv1D(256, kernel_size=5, strides=1, padding='same', activation='relu', input_shape=(x_train.shape[1], 1)))
@@ -281,11 +295,17 @@ model.add(Conv1D(128, kernel_size=5, strides=1, padding='same', activation='relu
 model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
 model.add(Dropout(0.2))
 
+model.add(Conv1D(128, kernel_size=5, strides=1, padding='same', activation='relu'))
+model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
+
+model.add(Conv1D(64, kernel_size=5, strides=1, padding='same', activation='relu'))
+model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
+
 model.add(Conv1D(64, kernel_size=5, strides=1, padding='same', activation='relu'))
 model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
 
 model.add(Flatten())
-model.add(Dense(units=32, activation='relu'))
+model.add(Dense(units=32, activation='sigmoid'))
 model.add(Dropout(0.3))
 
 model.add(Dense(units=8, activation='softmax'))
@@ -295,7 +315,21 @@ model.summary()
 
 
 rlrp = ReduceLROnPlateau(monitor='loss', factor=0.4, verbose=0, patience=2, min_lr=0.0000001)
-history=model.fit(x_train, y_train, batch_size=64, epochs=50, validation_data=(x_test, y_test), callbacks=[rlrp])
+history=model.fit(x_train, y_train, batch_size=128, epochs=25, validation_data=(x_test, y_test), callbacks=[rlrp])
 
 print("Accuracy of our model on test data : " , model.evaluate(x_test,y_test)[1]*100 , "%")
+
+
+pred_test = model.predict(x_test)
+y_pred = encoder.inverse_transform(pred_test)
+y_test = encoder.inverse_transform(y_test)
+cm = confusion_matrix(y_test, y_pred)
+plt.figure(figsize = (12, 10))
+cm = pd.DataFrame(cm , index = [i for i in encoder.categories_] , columns = [i for i in encoder.categories_])
+sns.heatmap(cm, linecolor='white', cmap='Blues', linewidth=1, annot=True, fmt='')
+plt.title('Confusion Matrix', size=20)
+plt.xlabel('Predicted Labels', size=14)
+plt.ylabel('Actual Labels', size=14)
+plt.show()
+print(classification_report(y_test, y_pred))
 
