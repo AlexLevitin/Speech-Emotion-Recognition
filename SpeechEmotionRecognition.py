@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
+from scipy.stats import skew, kurtosis
 
 # to play the audio files
 from IPython.display import Audio
@@ -197,33 +198,88 @@ def pitch(data, sampling_rate, pitch_factor=0.7):
     return librosa.effects.pitch_shift(data, sr=sampling_rate, n_steps=pitch_factor)
 
 def extract_features(data,sample_rate):
-    # ZCR
+ #   # ZCR
     result = np.array([])
-    zcr = np.mean(librosa.feature.zero_crossing_rate(y=data).T, axis=0)
-    result=np.hstack((result, zcr)) # stacking horizontally
-
-    # Chroma_stft
+ #   zcr_mean = np.mean(librosa.feature.zero_crossing_rate(y=data).T, axis=0)
+ #   result=np.hstack((result, zcr_mean)) # stacking horizontally
+ #   zcr_std = np.std(librosa.feature.zero_crossing_rate(y=data).T, axis=0)
+ #   result=np.hstack((result, zcr_std)) # stacking horizontally
+ #   zcr_energy = np.sum(np.square(librosa.feature.zero_crossing_rate(y=data).T), axis=0)
+ #   result=np.hstack((result, zcr_energy)) # stacking horizontally
+#
+#
+#
+ #   # Chroma_stft
+ #   stft = np.abs(librosa.stft(data))
+ #   chroma_stft_mean = np.mean(librosa.feature.chroma_stft(S=stft, sr=sample_rate).T, axis=0)
+ #   #print("stft shape: " + str(chroma_stft.shape))
+ #   result = np.hstack((result, chroma_stft_mean)) # stacking horizontally
+ #   chroma_stft_std = np.std(librosa.feature.zero_crossing_rate(y=data).T, axis=0)
+ #   result=np.hstack((result, chroma_stft_std)) # stacking horizontally
+ #   chroma_stft_energy = np.sum(np.square(librosa.feature.zero_crossing_rate(y=data).T), axis=0)
+ #   result=np.hstack((result, chroma_stft_energy)) # stacking horizontally
+#
+ #   # MFCC
+ #   mfcc_mean = np.mean(librosa.feature.mfcc(y=data, sr=sample_rate).T, axis=0)
+ #   #print("mfcc shape: " + str(mfcc.shape))
+ #   result = np.hstack((result, mfcc_mean)) # stacking horizontally
+ #   mfcc_std = np.std(librosa.feature.zero_crossing_rate(y=data).T, axis=0)
+ #   result=np.hstack((result, mfcc_std)) # stacking horizontally
+ #   mfcc_energy = np.sum(np.square(librosa.feature.zero_crossing_rate(y=data).T), axis=0)
+ #   result=np.hstack((result, mfcc_energy)) # stacking horizontally
+#
+ #   # Root Mean Square Value
+ #   rms_mean = np.mean(librosa.feature.rms(y=data).T, axis=0)
+ #   #print("rms shape: " + str(rms.shape))
+ #   result = np.hstack((result, rms_mean)) # stacking horizontally
+ #   rms_std = np.std(librosa.feature.zero_crossing_rate(y=data).T, axis=0)
+ #   result=np.hstack((result, rms_std)) # stacking horizontally
+ #   rms_energy = np.sum(np.square(librosa.feature.zero_crossing_rate(y=data).T), axis=0)
+ #   result=np.hstack((result, rms_energy)) # stacking horizontally
+#
+ #   # MelSpectogram
+ #   mel_mean = np.mean(librosa.feature.melspectrogram(y=data, sr=sample_rate).T, axis=0)
+ #   #print("mel shape: " + str(mel.shape))
+ #   result = np.hstack((result, mel_mean)) # stacking horizontally
+ #   mel_std = np.std(librosa.feature.zero_crossing_rate(y=data).T, axis=0)
+ #   result=np.hstack((result, mel_std)) # stacking horizontally
+ #   mel_energy = np.sum(np.square(librosa.feature.zero_crossing_rate(y=data).T), axis=0)
+ #   result=np.hstack((result, mel_energy)) # stacking horizontally
+ #   
+    zcr = librosa.feature.zero_crossing_rate(y=data).T
     stft = np.abs(librosa.stft(data))
-    chroma_stft = np.mean(librosa.feature.chroma_stft(S=stft, sr=sample_rate).T, axis=0)
-    #print("stft shape: " + str(chroma_stft.shape))
-    result = np.hstack((result, chroma_stft)) # stacking horizontally
-
-    # MFCC
-    mfcc = np.mean(librosa.feature.mfcc(y=data, sr=sample_rate).T, axis=0)
-    #print("mfcc shape: " + str(mfcc.shape))
-    result = np.hstack((result, mfcc)) # stacking horizontally
-
-    # Root Mean Square Value
-    rms = np.mean(librosa.feature.rms(y=data).T, axis=0)
-    #print("rms shape: " + str(rms.shape))
-    result = np.hstack((result, rms)) # stacking horizontally
-
-    # MelSpectogram
-    mel = np.mean(librosa.feature.melspectrogram(y=data, sr=sample_rate).T, axis=0)
-    #print("mel shape: " + str(mel.shape))
-    result = np.hstack((result, mel)) # stacking horizontally
-    
+    chroma_stft = librosa.feature.chroma_stft(S=stft, sr=sample_rate).T
+    mfcc = librosa.feature.mfcc(y=data, sr=sample_rate).T
+    rms = librosa.feature.rms(y=data).T
+    mel = librosa.feature.melspectrogram(y=data, sr=sample_rate).T
+    result = np.hstack((result,
+        get_stats(zcr),
+        get_stats(chroma_stft),
+        get_stats(mfcc),
+        get_stats(rms),
+        get_stats(mel)))
     return result
+
+def get_stats(feature):
+    result = np.array([])
+    mean = np.mean(feature, axis=0)
+    median = np.median(feature, axis=0)
+    std = np.std(feature, axis=0)
+    energy = np.sum(np.square(feature), axis=0)
+    ptp = np.ptp(feature, axis=0)
+    skews = skew(feature, axis=0)
+    kurt = kurtosis(feature,axis=0)
+    #result = np.array([mean,median, std, energy, ptp, skews, kurt])
+    result=np.hstack((result, mean)) # stacking horizontally
+    #result=np.hstack((result, median)) # stacking horizontally
+    result=np.hstack((result, std)) # stacking horizontally
+    #result=np.hstack((result, energy)) # stacking horizontally
+    #result=np.hstack((result, ptp)) # stacking horizontally
+    #result=np.hstack((result, skews)) # stacking horizontally
+    #result=np.hstack((result, kurt)) # stacking horizontally
+    return result
+
+    
 
 def get_features(path):
     # duration and offset are used to take care of the no audio in start and the ending of each audio files as seen above.
@@ -246,6 +302,15 @@ def get_features(path):
     
     return result
 
+def get_clean_features(path):
+    data, sample_rate = librosa.load(path, duration=2.5, offset=0.6)
+    
+    # without augmentation
+    res1 = extract_features(data,sample_rate)
+    result = np.array(res1)
+    return result
+
+
 #X, Y = [], []        ##################################        FIX THIS!!!! , NEED TO SPLIT DATA 1ST AND THEN AUGMENT
 #for path, emotion in zip(data_path.Path, data_path.Emotions):
 #    feature = get_features(path)
@@ -262,30 +327,57 @@ def get_features(path):
 #Features.to_csv('features.csv', index=False)
 
 
-Features = pd.read_csv('features.csv')
-print(Features.head())
-print("#\nTHIS IS PRE PREPARED DATA FROM CSV, CHECK CODE\n#")
+X_train, Y_train = [], []
+X_test, Y_test = [], []
+
+# Split the data into training and testing sets
+train_paths, test_paths, train_emotions, test_emotions = train_test_split(data_path.Path, data_path.Emotions, random_state=0, shuffle=True)
+# Iterate over training data paths and emotions
+for path, emotion in zip(train_paths, train_emotions):
+    # Extract features from the original audio sample
+    features = get_features(path)
+    for ele in features:
+        X_train.append(ele)
+        Y_train.append(emotion)
+# Iterate over testing data paths and emotions
+for path, emotion in zip(test_paths, test_emotions):
+    # Extract features from the original audio sample
+    features = get_clean_features(path)
+    X_test.append(features)
+    Y_test.append(emotion)
+    
+
+    
+#Features = pd.DataFrame(X)
+#Features['labels'] = Y
+#Features.to_csv('features.csv', index=False)
+
+#Features = pd.read_csv('features.csv')
+#print(Features.head())
+#print("#\nTHIS IS PRE PREPARED DATA FROM CSV, CHECK CODE\n#")
 
 ##################################### prep data for classification - split etc
-X = Features.iloc[: ,:-1].values
-Y = Features['labels'].values
+#X = Features.iloc[: ,:-1].values
+#Y = Features['labels'].values
 
 encoder = OneHotEncoder()
-Y = encoder.fit_transform(np.array(Y).reshape(-1,1)).toarray()
-
-x_train, x_test, y_train, y_test = train_test_split(X, Y, random_state=0, shuffle=True)
-x_train.shape, y_train.shape, x_test.shape, y_test.shape
+y_train = encoder.fit_transform(np.array(Y_train).reshape(-1,1)).toarray()
+y_test = encoder.fit_transform(np.array(Y_test).reshape(-1,1)).toarray()
 
 scaler = StandardScaler()
-x_train = scaler.fit_transform(x_train)
-x_test = scaler.transform(x_test)
-x_train.shape, y_train.shape, x_test.shape, y_test.shape
+x_train = scaler.fit_transform(X_train)
+x_test = scaler.transform(X_test)
 # making our data compatible to model.
 x_train = np.expand_dims(x_train, axis=2)
 x_test = np.expand_dims(x_test, axis=2)
 
+
+# Creating Validation data set
+x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2, random_state=0, shuffle=True)
+
+
 model=Sequential()
-model.add(Conv1D(256, kernel_size=5, strides=1, padding='same', activation='relu', input_shape=(x_train.shape[1], 1)))
+model.add(Conv1D(256, kernel_size=5, strides=1, padding='same', activation='relu'))
 model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
 
 model.add(Conv1D(256, kernel_size=5, strides=1, padding='same', activation='relu'))
@@ -315,7 +407,7 @@ model.summary()
 
 
 rlrp = ReduceLROnPlateau(monitor='loss', factor=0.4, verbose=0, patience=2, min_lr=0.0000001)
-history=model.fit(x_train, y_train, batch_size=128, epochs=25, validation_data=(x_test, y_test), callbacks=[rlrp])
+history=model.fit(x_train, y_train, batch_size=64, epochs=50, validation_data=(x_val, y_val), callbacks=[rlrp])
 
 print("Accuracy of our model on test data : " , model.evaluate(x_test,y_test)[1]*100 , "%")
 
