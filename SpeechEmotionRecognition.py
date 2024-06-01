@@ -1,3 +1,4 @@
+from typing import Counter
 import pandas as pd
 import numpy as np
 
@@ -274,7 +275,7 @@ def get_stats(feature):
     #result=np.hstack((result, median)) # stacking horizontally
     result=np.hstack((result, std)) # stacking horizontally
     #result=np.hstack((result, energy)) # stacking horizontally
-    #result=np.hstack((result, ptp)) # stacking horizontally
+    result=np.hstack((result, ptp)) # stacking horizontally
     #result=np.hstack((result, skews)) # stacking horizontally
     #result=np.hstack((result, kurt)) # stacking horizontally
     return result
@@ -310,55 +311,70 @@ def get_clean_features(path):
     result = np.array(res1)
     return result
 
+def split_audio(data, sr, seg_duration):
+    seg_len = seg_duration * sr  # making sure segment is indeed 2 secs
+    num_seg = int(np.ceil(len(data)/seg_len))
+    segments = []
+    for i in range(num_seg):
+        start = i*seg_len
+        end = min((i+1) * seg_len, len(data))
+        segments.append(data[start:end])
+    return segments
+def get_features_segments(segments, sr): ##need to change feature func(takes path need data)
+    features = []
+    for seg in segments:
+        seg_features = np.array(extract_features(seg, sr))
+        features.append(seg_features)
+    return np.array(features)
+def classify_segments(seg_features, model):
+    seg_features = np.expand_dims(seg_features, axis=2)
+    predictions = model.predict(seg_features)
+    return predictions
+def combine_predictions(predictions):
+    predictions = predictions.flatten()
+    unique_classes, counts = np.unique(predictions, return_counts=True)
+    most_frequent_class = unique_classes[np.argmax(counts)]
+    return most_frequent_class
 
-#X, Y = [], []        ##################################        FIX THIS!!!! , NEED TO SPLIT DATA 1ST AND THEN AUGMENT
-#for path, emotion in zip(data_path.Path, data_path.Emotions):
-#    feature = get_features(path)
-#    for ele in feature:
-#        X.append(ele)
-#        # appending emotion 3 times as we have made 3 augmentation techniques on each audio file.
-#        Y.append(emotion)
-#        
-#print(len(X), len(Y), data_path.Path.shape)
+
+#X_train, Y_train = [], []
+#X_test, Y_test = [], []
 #
-#print("############ FINISHED AUGMENTATION OF DATA ####################")
-#Features = pd.DataFrame(X)
-#Features['labels'] = Y
-#Features.to_csv('features.csv', index=False)
+## Split the data into training and testing sets
+#train_paths, test_paths, train_emotions, test_emotions = train_test_split(data_path.Path, data_path.Emotions, random_state=0, shuffle=True)
+## Iterate over training data paths and emotions
+#for path, emotion in zip(train_paths, train_emotions):
+#    # Extract features from the original audio sample
+#    features = get_features(path)
+#    for ele in features:
+#        X_train.append(ele)
+#        Y_train.append(emotion)
+## Iterate over testing data paths and emotions
+#for path, emotion in zip(test_paths, test_emotions):
+#    # Extract features from the original audio sample
+#    features = get_clean_features(path)
+#    X_test.append(features)
+#    Y_test.append(emotion)
+#    
+#
+#    
+#TrainFeatures = pd.DataFrame(X_train)
+#TrainFeatures['labels'] = Y_train
+#TrainFeatures.to_csv('train_features.csv', index=False)
+#
+#TestFeatures = pd.DataFrame(X_test)
+#TestFeatures['labels'] = Y_test
+#TestFeatures.to_csv('test_features.csv', index=False)
 
+TrainFeatures = pd.read_csv('train_features.csv')
+TestFeatures = pd.read_csv('test_features.csv')
+print("#\nTHIS IS PRE PREPARED DATA FROM CSV, CHECK CODE\n#")
 
-X_train, Y_train = [], []
-X_test, Y_test = [], []
+X_train = TrainFeatures.iloc[: ,:-1].values
+Y_train = TrainFeatures['labels'].values
+X_test = TestFeatures.iloc[: ,:-1].values
+Y_test = TestFeatures['labels'].values
 
-# Split the data into training and testing sets
-train_paths, test_paths, train_emotions, test_emotions = train_test_split(data_path.Path, data_path.Emotions, random_state=0, shuffle=True)
-# Iterate over training data paths and emotions
-for path, emotion in zip(train_paths, train_emotions):
-    # Extract features from the original audio sample
-    features = get_features(path)
-    for ele in features:
-        X_train.append(ele)
-        Y_train.append(emotion)
-# Iterate over testing data paths and emotions
-for path, emotion in zip(test_paths, test_emotions):
-    # Extract features from the original audio sample
-    features = get_clean_features(path)
-    X_test.append(features)
-    Y_test.append(emotion)
-    
-
-    
-#Features = pd.DataFrame(X)
-#Features['labels'] = Y
-#Features.to_csv('features.csv', index=False)
-
-#Features = pd.read_csv('features.csv')
-#print(Features.head())
-#print("#\nTHIS IS PRE PREPARED DATA FROM CSV, CHECK CODE\n#")
-
-##################################### prep data for classification - split etc
-#X = Features.iloc[: ,:-1].values
-#Y = Features['labels'].values
 
 encoder = OneHotEncoder()
 y_train = encoder.fit_transform(np.array(Y_train).reshape(-1,1)).toarray()
@@ -387,14 +403,10 @@ model.add(Conv1D(128, kernel_size=5, strides=1, padding='same', activation='relu
 model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
 model.add(Dropout(0.2))
 
-model.add(Conv1D(128, kernel_size=5, strides=1, padding='same', activation='relu'))
-model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
 
 model.add(Conv1D(64, kernel_size=5, strides=1, padding='same', activation='relu'))
 model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
 
-model.add(Conv1D(64, kernel_size=5, strides=1, padding='same', activation='relu'))
-model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
 
 model.add(Flatten())
 model.add(Dense(units=32, activation='sigmoid'))
@@ -407,7 +419,7 @@ model.summary()
 
 
 rlrp = ReduceLROnPlateau(monitor='loss', factor=0.4, verbose=0, patience=2, min_lr=0.0000001)
-history=model.fit(x_train, y_train, batch_size=64, epochs=50, validation_data=(x_val, y_val), callbacks=[rlrp])
+history=model.fit(x_train, y_train, batch_size=64, epochs=1, validation_data=(x_val, y_val), callbacks=[rlrp])
 
 print("Accuracy of our model on test data : " , model.evaluate(x_test,y_test)[1]*100 , "%")
 
@@ -424,4 +436,14 @@ plt.xlabel('Predicted Labels', size=14)
 plt.ylabel('Actual Labels', size=14)
 plt.show()
 print(classification_report(y_test, y_pred))
+
+long_angry = "DataSets/long_angry_sample.mp3"
+data, sample_rate = librosa.load(long_angry)
+segs = split_audio(data, sample_rate, 1)
+seg_features = get_features_segments(segs, sample_rate)
+print("Check segmentation prediction:\n")
+predictions = classify_segments(seg_features, model)
+combined_prediction = combine_predictions(encoder.inverse_transform(predictions))
+print("Predictions are: " + str(encoder.inverse_transform(predictions)))
+print("Combined prediction is: " + str(combined_prediction))
 
