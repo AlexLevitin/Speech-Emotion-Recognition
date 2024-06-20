@@ -23,6 +23,7 @@ import keras
 from keras.callbacks import ReduceLROnPlateau
 from keras.models import Sequential
 from keras.layers import Dense, Conv1D, MaxPooling1D, Flatten, Dropout, BatchNormalization
+from keras import regularizers
 #from keras.utils import np_utils
 from keras.utils import to_categorical
 from keras.callbacks import ModelCheckpoint
@@ -64,6 +65,8 @@ for dir in ravdess_directory_list:
         part = file.split('.')[0]
         part = part.split('-')
         # third part in each file represents the emotion associated to that file.
+        if int(part[2]) == 2:
+            continue
         file_emotion.append(int(part[2]))
         file_path.append(Ravdess + dir + '/' + file)
         
@@ -75,8 +78,10 @@ path_df = pd.DataFrame(file_path, columns=['Path'])
 Ravdess_df = pd.concat([emotion_df, path_df], axis=1)
 
 # changing integers to actual emotions.
-Ravdess_df.Emotions.replace({1:'neutral', 2:'calm', 3:'happy', 4:'sad', 5:'angry', 6:'fear', 7:'disgust', 8:'surprise'}, inplace=True)
-print(Ravdess_df.head())
+#Ravdess_df.Emotions.replace({1:'neutral', 2:'calm', 3:'happy', 4:'sad', 5:'angry', 6:'fear', 7:'disgust', 8:'surprise'}, inplace=True)
+Ravdess_df.Emotions.replace({1: 'neutral', 3: 'happy', 4: 'sad', 5: 'angry', 6: 'fear', 7: 'disgust', 8: 'surprise'}, inplace=True)
+
+print(Ravdess_df)
 
 ##################################     CREMA 
 #crema_directory_list = os.listdir(Crema)
@@ -138,42 +143,42 @@ path_df = pd.DataFrame(file_path, columns=['Path'])
 Tess_df = pd.concat([emotion_df, path_df], axis=1)
 print(Tess_df.head()) 
 
-###################################     SAVEE
-#savee_directory_list = os.listdir(Savee)
-#
-#file_emotion = []
-#file_path = []
-#
-#for file in savee_directory_list:
-#    file_path.append(Savee + file)
-#    part = file.split('_')[1]
-#    ele = part[:-6]
-#    if ele=='a':
-#        file_emotion.append('angry')
-#    elif ele=='d':
-#        file_emotion.append('disgust')
-#    elif ele=='f':
-#        file_emotion.append('fear')
-#    elif ele=='h':
-#        file_emotion.append('happy')
-#    elif ele=='n':
-#        file_emotion.append('neutral')
-#    elif ele=='sa':
-#        file_emotion.append('sad')
-#    else:
-#        file_emotion.append('surprise')
-#        
-## dataframe for emotion of files
-#emotion_df = pd.DataFrame(file_emotion, columns=['Emotions'])
-#
-## dataframe for path of files.
-#path_df = pd.DataFrame(file_path, columns=['Path'])
-#Savee_df = pd.concat([emotion_df, path_df], axis=1)
+##################################     SAVEE
+savee_directory_list = os.listdir(Savee)
+
+file_emotion = []
+file_path = []
+
+for file in savee_directory_list:
+    file_path.append(Savee + file)
+    part = file.split('_')[1]
+    ele = part[:-6]
+    if ele=='a':
+        file_emotion.append('angry')
+    elif ele=='d':
+        file_emotion.append('disgust')
+    elif ele=='f':
+        file_emotion.append('fear')
+    elif ele=='h':
+        file_emotion.append('happy')
+    elif ele=='n':
+        file_emotion.append('neutral')
+    elif ele=='sa':
+        file_emotion.append('sad')
+    else:
+        file_emotion.append('surprise')
+        
+# dataframe for emotion of files
+emotion_df = pd.DataFrame(file_emotion, columns=['Emotions'])
+
+# dataframe for path of files.
+path_df = pd.DataFrame(file_path, columns=['Path'])
+Savee_df = pd.concat([emotion_df, path_df], axis=1)
 #print(Savee_df.head())
 #
 ###  main dataframe
 #data_path = pd.concat([Ravdess_df, Crema_df, Tess_df, Savee_df], axis = 0)
-data_path = pd.concat([Ravdess_df, Tess_df], axis = 0)
+data_path = pd.concat([Ravdess_df,Savee_df ,Tess_df], axis = 0)
 data_path.to_csv("data_path.csv",index=False)
 print(data_path.head())
 print("########### FINISHED PREPPIN DATA #############")
@@ -205,38 +210,50 @@ def shift(data):
 def pitch(data, sampling_rate, pitch_factor=0.7):
     return librosa.effects.pitch_shift(data, sr=sampling_rate, n_steps=pitch_factor)
 
+#def extract_features(data,sample_rate):
+#    result = np.array([])
+#    #zcr = librosa.feature.zero_crossing_rate(y=data).T
+#    #stft = np.abs(librosa.stft(data))
+#    #chroma_stft = librosa.feature.chroma_stft(S=stft, sr=sample_rate).T
+#    mfcc = librosa.feature.mfcc(y=data, sr=sample_rate, n_mfcc=40).T
+#    #rms = librosa.feature.rms(y=data).T
+#    #mel = librosa.feature.melspectrogram(y=data, sr=sample_rate).T
+#    result = np.hstack((result,
+#        #get_stats(zcr),
+#        #get_stats(chroma_stft),
+#        get_stats(mfcc)#,
+#        #get_stats(rms),
+#       # get_stats(mel)
+#        ))
+#    return result
 def extract_features(data,sample_rate):
-    result = np.array([])
-    zcr = librosa.feature.zero_crossing_rate(y=data).T
-    stft = np.abs(librosa.stft(data))
-    chroma_stft = librosa.feature.chroma_stft(S=stft, sr=sample_rate).T
-    mfcc = librosa.feature.mfcc(y=data, sr=sample_rate, n_mfcc=40).T
-    rms = librosa.feature.rms(y=data).T
-    mel = librosa.feature.melspectrogram(y=data, sr=sample_rate).T
-    result = np.hstack((result,
-        get_stats(zcr),
-        get_stats(chroma_stft),
-        get_stats(mfcc),
-        get_stats(rms),
-        get_stats(mel)
-        ))
-    return result
+    mfcc = librosa.feature.mfcc(y=data, sr=sample_rate, n_mfcc=40)
+    
+    # Pad or truncate MFCC to the fixed length (max_len)
+    if mfcc.shape[1] > 65:
+        mfcc = mfcc[:, :65]
+    else:
+        pad_width = 65 - mfcc.shape[1]
+        mfcc = np.pad(mfcc, pad_width=((0, 0), (0, pad_width)), mode='constant')
+    
+
+    return mfcc
 
 def get_stats(feature):
     result = np.array([])
     mean = np.mean(feature, axis=0)
-    median = np.median(feature, axis=0)
-    std = np.std(feature, axis=0)
-    energy = np.sum(np.square(feature), axis=0)
-    ptp = np.ptp(feature, axis=0)
+    #median = np.median(feature, axis=0)
+    #std = np.std(feature, axis=0)
+    #energy = np.sum(np.square(feature), axis=0)
+    #ptp = np.ptp(feature, axis=0)
     #skews = skew(feature, axis=0)
     #kurt = kurtosis(feature,axis=0)
     #result = np.array([mean,median, std, energy, ptp, skews, kurt])
     result=np.hstack((result, mean)) # stacking horizontally
-    result=np.hstack((result, median)) # stacking horizontally
-    result=np.hstack((result, std)) # stacking horizontally
-    result=np.hstack((result, energy)) # stacking horizontally
-    result=np.hstack((result, ptp)) # stacking horizontally
+    #result=np.hstack((result, median)) # stacking horizontally
+    #result=np.hstack((result, std)) # stacking horizontally
+    #result=np.hstack((result, energy)) # stacking horizontally
+    #result=np.hstack((result, ptp)) # stacking horizontally
     #result=np.hstack((result, skews)) # stacking horizontally
     #result=np.hstack((result, kurt)) # stacking horizontally
     return result
@@ -250,19 +267,24 @@ def get_features(path):
     # without augmentation
     res1 = extract_features(data,sample_rate)
     result = np.array(res1)
+    ress = []
+    ress.append(res1)
     
     # data with noise
     noise_data = noise(data)
     res2 = extract_features(noise_data,sample_rate)
     result = np.vstack((result, res2)) # stacking vertically
+    ress.append(res2)
+
     
     # data with stretching and pitching
-    new_data = stretch(data)
-    data_stretch_pitch = pitch(new_data, sample_rate)
+    #new_data = stretch(data)
+    data_stretch_pitch = pitch(data, sample_rate)
     res3 = extract_features(data_stretch_pitch,sample_rate)
     result = np.vstack((result, res3)) # stacking vertically
+    ress.append(res3)
     
-    return result
+    return ress
 
 def get_clean_features(path):
     data, sample_rate = librosa.load(path, duration=2, offset=0.6, sr=16000)
@@ -304,7 +326,7 @@ def get_features_segments(segments, sr): ##need to change feature func(takes pat
         features.append(seg_features)
     return np.array(features)
 def classify_segments(seg_features, model):
-    seg_features = np.expand_dims(seg_features, axis=2)
+    seg_features = np.expand_dims(seg_features, axis=3)
     predictions = model.predict(seg_features)
     return predictions
 def combine_predictions(predictions):
@@ -314,62 +336,87 @@ def combine_predictions(predictions):
     return most_frequent_class
 
 
-#X_train, Y_train = [], []
-#X_test, Y_test = [], []
-#
-## Split the data into training and testing sets
-#train_paths, test_paths, train_emotions, test_emotions = train_test_split(data_path.Path, data_path.Emotions, random_state=0, shuffle=True)
-## Iterate over training data paths and emotions
-#for path, emotion in zip(train_paths, train_emotions):
-#    # Extract features from the original audio sample
-#    features = get_features(path)
-#    for ele in features:
-#        X_train.append(ele)
-#        Y_train.append(emotion)
-#    #features = get_clean_features(path)
-#    #X_train.append(features)
-#    #Y_train.append(emotion)
-## Iterate over testing data paths and emotions
-#for path, emotion in zip(test_paths, test_emotions):
-#    # Extract features from the original audio sample
-#    features = get_clean_features(path)
-#    X_test.append(features)
-#    Y_test.append(emotion)
-#    
-#
-#    
+X_train, Y_train = [], []
+X_test, Y_test = [], []
+
+# Split the data into training and testing sets
+train_paths, test_paths, train_emotions, test_emotions = train_test_split(data_path.Path, data_path.Emotions, random_state=0, shuffle=True)
+# Iterate over training data paths and emotions
+for path, emotion in zip(train_paths, train_emotions):
+    # Extract features from the original audio sample
+    features = get_features(path)
+    for ele in features:
+        X_train.append(ele)
+        Y_train.append(emotion)
+    #features = get_clean_features(path)
+    #X_train.append(features)
+    #Y_train.append(emotion)
+# Iterate over testing data paths and emotions
+for path, emotion in zip(test_paths, test_emotions):
+    # Extract features from the original audio sample
+    features = get_clean_features(path)
+    X_test.append(features)
+    Y_test.append(emotion)
+    
+
+    
 #TrainFeatures = pd.DataFrame(X_train)
 #TrainFeatures['labels'] = Y_train
-#TrainFeatures.to_csv('train_features.csv', index=False)
+##TrainFeatures.to_csv('train_features.csv', index=False)
 #
 #TestFeatures = pd.DataFrame(X_test)
 #TestFeatures['labels'] = Y_test
-#TestFeatures.to_csv('test_features.csv', index=False)
-
-TrainFeatures = pd.read_csv('train_features.csv')
-TestFeatures = pd.read_csv('test_features.csv')
-print("#\nTHIS IS PRE PREPARED DATA FROM CSV, CHECK CODE\n#")
-
-X_train = TrainFeatures.iloc[: ,:-1].values
-Y_train = TrainFeatures['labels'].values
-X_test = TestFeatures.iloc[: ,:-1].values
-Y_test = TestFeatures['labels'].values
+##TestFeatures.to_csv('test_features.csv', index=False)
+#
+##TrainFeatures = pd.read_csv('train_features.csv')
+##TestFeatures = pd.read_csv('test_features.csv')
+##print("#\nTHIS IS PRE PREPARED DATA FROM CSV, CHECK CODE\n#")
+#
+#X_train = TrainFeatures.iloc[: ,:-1].values
+#Y_train = TrainFeatures['labels'].values
+#X_test = TestFeatures.iloc[: ,:-1].values
+#Y_test = TestFeatures['labels'].values
 
 
 encoder = OneHotEncoder()
 y_train = encoder.fit_transform(np.array(Y_train).reshape(-1,1)).toarray()
 y_test = encoder.fit_transform(np.array(Y_test).reshape(-1,1)).toarray()
 
+
+
+# Initialize StandardScaler
 scaler = StandardScaler()
-x_train = scaler.fit_transform(X_train)
-x_test = scaler.transform(X_test)
+X_train_2d = np.array(X_train).reshape(-1, 40 * 65)
+# Fit-transform on X_train_2d
+x_train_scaled = scaler.fit_transform(X_train_2d)
+
+# Check the shape after scaling
+print(x_train_scaled.shape)  # Should be (10620, 40*65)
+
+# Reshape back to 3D if necessary
+x_train_scaled = x_train_scaled.reshape(-1, 40, 65)
+print(x_train_scaled.shape)
+X_test_2d = np.array(X_test).reshape(-1, 40 * 65)
+# Fit-transform on X_train_2d
+x_test_scaled = scaler.fit_transform(X_test_2d)
+
+# Check the shape after scaling
+print(x_test_scaled.shape)  # Should be (10620, 40*65)
+
+# Reshape back to 3D if necessary
+x_test_scaled = x_test_scaled.reshape(-1, 40, 65)
+print(x_test_scaled.shape)
+
+#scaler = StandardScaler()
+#x_train = scaler.fit_transform(X_train)
+#x_test = scaler.transform(X_test)
 # making our data compatible to model.
-x_train = np.expand_dims(x_train, axis=2)
-x_test = np.expand_dims(x_test, axis=2)
+x_train = np.expand_dims(x_train_scaled, axis=3)
+x_test = np.expand_dims(x_test_scaled, axis=3)
 
 
 # Creating Validation data set
-x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2, random_state=0, shuffle=True)
+x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2, random_state=0, shuffle=False)
 
 
 #model=Sequential()
@@ -425,32 +472,43 @@ x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.
 #
 #model.summary()
 
-model=Sequential()
-model.add(Conv1D(256, kernel_size=5, strides=1, padding='same', activation='relu', input_shape=(x_train.shape[1], 1)))
-model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
+model = Sequential()
 
-model.add(Conv1D(256, kernel_size=5, strides=1, padding='same', activation='relu'))
-model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
+model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(40, 65, 1)))
+model.add(BatchNormalization())
+model.add(MaxPooling2D((2, 2)))
+model.add(Dropout(0.25))
 
-model.add(Conv1D(128, kernel_size=5, strides=1, padding='same', activation='relu'))
-model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
-model.add(Dropout(0.2))
+# Second Cional Block
+model.add(Conv2D(32, (3, 3), activation='relu'))
+model.add(BatchNormalization())
+model.add(MaxPooling2D((2, 2)))
+model.add(Dropout(0.25))
 
-model.add(Conv1D(64, kernel_size=5, strides=1, padding='same', activation='relu'))
-model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
+## Third Coonal Block
+#model.add(Conv2D(128, (3, 3), activation='relu'))
+#model.add(BatchNormalization())
+#model.add(MaxPooling2D((2, 2)))
+#model.add(Dropout(0.25))
 
+# Fully Co Block
 model.add(Flatten())
-model.add(Dense(units=32, activation='relu'))
-model.add(Dropout(0.3))
+model.add(Dense(32, activation='relu'))
+model.add(BatchNormalization())
+model.add(Dropout(0.5))
+#model.add(Dense(32, activation='relu'))
+#model.add(BatchNormalization())
+#model.add(Dropout(0.5))
 
-model.add(Dense(units=8, activation='softmax'))
+# Output L
+model.add(Dense(7, activation='softmax'))
 model.compile(optimizer = 'adam' , loss = 'categorical_crossentropy' , metrics = ['accuracy'])
 
 model.summary()
 
 
-rlrp = ReduceLROnPlateau(monitor='loss', factor=0.4, verbose=0, patience=2, min_lr=0.0000001)
-history=model.fit(x_train, y_train, batch_size=256, epochs=50, validation_data=(x_val, y_val), callbacks=[rlrp])
+rlrp = ReduceLROnPlateau(monitor='loss', factor=0.4, verbose=1, patience=2, min_lr=0.0000001)
+history=model.fit(x_train, y_train, batch_size=128, epochs=30, validation_data=(x_val, y_val), callbacks=[rlrp])
 #history = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=25, shuffle=True)
 
 
@@ -470,7 +528,7 @@ plt.ylabel('Actual Labels', size=14)
 plt.show()
 print(classification_report(y_test, y_pred))
 
-long_angry = "DataSets/mad.mp3"
+long_angry = "DataSets/long_angry_sample.mp3"
 data, sample_rate = librosa.load(long_angry)
 segs = split_audio(data, sample_rate, 2)
 seg_features = get_features_segments(segs, sample_rate)
