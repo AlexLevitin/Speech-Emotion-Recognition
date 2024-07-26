@@ -1,4 +1,3 @@
-from typing import Counter
 import pandas as pd
 import numpy as np
 
@@ -10,29 +9,23 @@ import librosa
 import librosa.display
 import seaborn as sns
 import matplotlib.pyplot as plt
+from keras.models import save_model
 
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
-from scipy.stats import skew, kurtosis
 
 # to play the audio files
-from IPython.display import Audio
 
 import keras
 from keras.callbacks import ReduceLROnPlateau
 from keras.models import Sequential
-from keras.layers import Dense, Conv1D, MaxPooling1D, Flatten, Dropout, BatchNormalization
 from keras import regularizers
-#from keras.utils import np_utils
-from keras.utils import to_categorical
-from keras.callbacks import ModelCheckpoint
 
 import keras  # High-level neural networks API
 #from tensorflow.keras.utils import to_categorical  # Utility for one-hot encoding
 from keras.models import Sequential  # Sequential model for stacking layers
 from keras.layers import *  # Different layers for building neural networks
-#from keras.optimizers import rmsprop  # Optimizer for training the model
 
 import warnings
 if not sys.warnoptions:
@@ -210,59 +203,34 @@ def shift(data):
 def pitch(data, sampling_rate, pitch_factor=0.7):
     return librosa.effects.pitch_shift(data, sr=sampling_rate, n_steps=pitch_factor)
 
-#def extract_features(data,sample_rate):
-#    result = np.array([])
-#    #zcr = librosa.feature.zero_crossing_rate(y=data).T
-#    #stft = np.abs(librosa.stft(data))
-#    #chroma_stft = librosa.feature.chroma_stft(S=stft, sr=sample_rate).T
-#    mfcc = librosa.feature.mfcc(y=data, sr=sample_rate, n_mfcc=40).T
-#    #rms = librosa.feature.rms(y=data).T
-#    #mel = librosa.feature.melspectrogram(y=data, sr=sample_rate).T
-#    result = np.hstack((result,
-#        #get_stats(zcr),
-#        #get_stats(chroma_stft),
-#        get_stats(mfcc)#,
-#        #get_stats(rms),
-#       # get_stats(mel)
-#        ))
-#    return result
 def extract_features(data,sample_rate):
     mfcc = librosa.feature.mfcc(y=data, sr=sample_rate, n_mfcc=40)
-    
-    # Pad or truncate MFCC to the fixed length (max_len)
-    if mfcc.shape[1] > 65:
-        mfcc = mfcc[:, :65]
+    mel_spec = librosa.feature.melspectrogram(y=data, sr=sample_rate, n_mels=128)
+    mel = librosa.power_to_db(mel_spec, ref=np.max)
+
+    mfcc = np.resize(mfcc, (128, mfcc.shape[1]))
+    mfcc = np.expand_dims(mfcc, axis=-1)
+    mel = np.expand_dims(mel, axis=-1)
+    # Stack the features along the channel dimension
+    combined_features = np.concatenate((mfcc, mel), axis=-1)
+
+    return combined_features
+
+def padFeature(features, shape = None): #padding function the make shape equal
+    if shape is None:
+        max_length = max(feature.shape[1] for feature in features)
     else:
-        pad_width = 65 - mfcc.shape[1]
-        mfcc = np.pad(mfcc, pad_width=((0, 0), (0, pad_width)), mode='constant')
-    
-
-    return mfcc
-
-def get_stats(feature):
-    result = np.array([])
-    mean = np.mean(feature, axis=0)
-    #median = np.median(feature, axis=0)
-    #std = np.std(feature, axis=0)
-    #energy = np.sum(np.square(feature), axis=0)
-    #ptp = np.ptp(feature, axis=0)
-    #skews = skew(feature, axis=0)
-    #kurt = kurtosis(feature,axis=0)
-    #result = np.array([mean,median, std, energy, ptp, skews, kurt])
-    result=np.hstack((result, mean)) # stacking horizontally
-    #result=np.hstack((result, median)) # stacking horizontally
-    #result=np.hstack((result, std)) # stacking horizontally
-    #result=np.hstack((result, energy)) # stacking horizontally
-    #result=np.hstack((result, ptp)) # stacking horizontally
-    #result=np.hstack((result, skews)) # stacking horizontally
-    #result=np.hstack((result, kurt)) # stacking horizontally
-    return result
-
-    
+        max_length = shape
+    for i, feature in enumerate(features):
+        current_length = feature.shape[1]
+        if current_length < max_length:
+            temp = np.zeros((feature.shape[0], max_length, feature.shape[2]))
+            temp[:, :current_length,:] = feature
+            features[i] = temp
 
 def get_features(path):
     # duration and offset are used to take care of the no audio in start and the ending of each audio files as seen above.
-    data, sample_rate = librosa.load(path, duration=2, offset=0.6, sr=16000)
+    data, sample_rate = librosa.load(path, duration=3, offset=0.6, sr=16000)
     
     # without augmentation
     res1 = extract_features(data,sample_rate)
@@ -287,12 +255,35 @@ def get_features(path):
     return ress
 
 def get_clean_features(path):
-    data, sample_rate = librosa.load(path, duration=2, offset=0.6, sr=16000)
+    data, sample_rate = librosa.load(path, duration=3, offset=0.6, sr=16000)
     
     # without augmentation
     res1 = extract_features(data,sample_rate)
     result = np.array(res1)
     return result
+
+def applyScaler(data):
+    mfcc_features = np.array(data)[..., 0]
+    mel_features = np.array(data)[..., 1]
+    # Reshape for scaling
+    mfcc_features_2d = mfcc_features.reshape(-1, 128 * mfcc_features.shape[2])
+    mel_features_2d = mel_features.reshape(-1, 128 * mel_features.shape[2])
+
+    # Scale each channel separately
+    scaler_mfcc = StandardScaler()
+    scaler_mel = StandardScaler()
+
+    mfcc_scaled = scaler_mfcc.fit_transform(mfcc_features_2d)
+    mel_scaled = scaler_mel.fit_transform(mel_features_2d)
+
+    # Reshape back to 3D
+    mfcc_scaled = mfcc_scaled.reshape(-1, 128, mfcc_features.shape[2])
+    mel_scaled = mel_scaled.reshape(-1, 128, mel_features.shape[2])
+
+    # Combine the channels back into a multi-channel format
+    data_scaled = np.stack((mfcc_scaled, mel_scaled), axis=-1)
+
+    return data_scaled
 
 def split_audio(data, sr, seg_duration):
     ##############       NO OVERLAP            #############
@@ -306,7 +297,7 @@ def split_audio(data, sr, seg_duration):
     #return segments
     #############        WITH OVERLAP          ############
     overlap_duration = 0.5
-    segment_length = seg_duration * sr
+    segment_length = round(seg_duration * sr)
     overlap_length = round(overlap_duration * sr)
     step_size = segment_length - overlap_length
     
@@ -319,224 +310,137 @@ def split_audio(data, sr, seg_duration):
         start += step_size
     
     return segments
-def get_features_segments(segments, sr): ##need to change feature func(takes path need data)
+def get_features_segments(segments, sr): 
     features = []
     for seg in segments:
         seg_features = np.array(extract_features(seg, sr))
         features.append(seg_features)
-    return np.array(features)
-def classify_segments(seg_features, model):
-    seg_features = np.expand_dims(seg_features, axis=3)
-    predictions = model.predict(seg_features)
-    return predictions
+    #padFeature(features)
+    return features
 def combine_predictions(predictions):
     predictions = predictions.flatten()
     unique_classes, counts = np.unique(predictions, return_counts=True)
     most_frequent_class = unique_classes[np.argmax(counts)]
     return most_frequent_class
 
-
-X_train, Y_train = [], []
-X_test, Y_test = [], []
-
-# Split the data into training and testing sets
-train_paths, test_paths, train_emotions, test_emotions = train_test_split(data_path.Path, data_path.Emotions, random_state=0, shuffle=True)
-# Iterate over training data paths and emotions
-for path, emotion in zip(train_paths, train_emotions):
-    # Extract features from the original audio sample
-    features = get_features(path)
-    for ele in features:
-        X_train.append(ele)
-        Y_train.append(emotion)
-    #features = get_clean_features(path)
-    #X_train.append(features)
-    #Y_train.append(emotion)
-# Iterate over testing data paths and emotions
-for path, emotion in zip(test_paths, test_emotions):
-    # Extract features from the original audio sample
-    features = get_clean_features(path)
-    X_test.append(features)
-    Y_test.append(emotion)
+if __name__ == "__main__":
+    #X_train, Y_train = [], []
+    #X_test, Y_test = [], []
+    #
+    ## Split the data into training and testing sets
+    #train_paths, test_paths, train_emotions, test_emotions = train_test_split(data_path.Path, data_path.Emotions, random_state=0, shuffle=True)
+    ## Iterate over training data paths and emotions
+    #for path, emotion in zip(train_paths, train_emotions):
+    #    # Extract features from the original audio sample
+    #    features = get_features(path)
+    #    for ele in features:
+    #        X_train.append(ele)
+    #        Y_train.append(emotion)
+    ## Iterate over testing data paths and emotions
+    #for path, emotion in zip(test_paths, test_emotions):
+    #    # Extract features from the original audio sample
+    #    features = get_clean_features(path)
+    #    X_test.append(features)
+    #    Y_test.append(emotion)
+    #    
+    #
+    #padFeature(X_train)
+    #padFeature(X_test)
+    #    
+    #np.savez('features.npz', X_train=X_train, X_test=X_test, Y_train = Y_train, Y_test = Y_test)
     
-
     
-#TrainFeatures = pd.DataFrame(X_train)
-#TrainFeatures['labels'] = Y_train
-##TrainFeatures.to_csv('train_features.csv', index=False)
-#
-#TestFeatures = pd.DataFrame(X_test)
-#TestFeatures['labels'] = Y_test
-##TestFeatures.to_csv('test_features.csv', index=False)
-#
-##TrainFeatures = pd.read_csv('train_features.csv')
-##TestFeatures = pd.read_csv('test_features.csv')
-##print("#\nTHIS IS PRE PREPARED DATA FROM CSV, CHECK CODE\n#")
-#
-#X_train = TrainFeatures.iloc[: ,:-1].values
-#Y_train = TrainFeatures['labels'].values
-#X_test = TestFeatures.iloc[: ,:-1].values
-#Y_test = TestFeatures['labels'].values
-
-
-encoder = OneHotEncoder()
-y_train = encoder.fit_transform(np.array(Y_train).reshape(-1,1)).toarray()
-y_test = encoder.fit_transform(np.array(Y_test).reshape(-1,1)).toarray()
-
-
-
-# Initialize StandardScaler
-scaler = StandardScaler()
-X_train_2d = np.array(X_train).reshape(-1, 40 * 65)
-# Fit-transform on X_train_2d
-x_train_scaled = scaler.fit_transform(X_train_2d)
-
-# Check the shape after scaling
-print(x_train_scaled.shape)  # Should be (10620, 40*65)
-
-# Reshape back to 3D if necessary
-x_train_scaled = x_train_scaled.reshape(-1, 40, 65)
-print(x_train_scaled.shape)
-X_test_2d = np.array(X_test).reshape(-1, 40 * 65)
-# Fit-transform on X_train_2d
-x_test_scaled = scaler.fit_transform(X_test_2d)
-
-# Check the shape after scaling
-print(x_test_scaled.shape)  # Should be (10620, 40*65)
-
-# Reshape back to 3D if necessary
-x_test_scaled = x_test_scaled.reshape(-1, 40, 65)
-print(x_test_scaled.shape)
-
-#scaler = StandardScaler()
-#x_train = scaler.fit_transform(X_train)
-#x_test = scaler.transform(X_test)
-# making our data compatible to model.
-x_train = np.expand_dims(x_train_scaled, axis=3)
-x_test = np.expand_dims(x_test_scaled, axis=3)
-
-
-# Creating Validation data set
-x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2, random_state=0, shuffle=False)
-
-
-#model=Sequential()
-#model.add(Conv1D(32, kernel_size=5, strides=1, padding='same', activation='relu'))
-#model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
-#
-#model.add(Conv1D(32, kernel_size=5, strides=1, padding='same', activation='relu'))
-#model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
-#
-#model.add(Conv1D(64, kernel_size=5, strides=1, padding='same', activation='relu'))
-#model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
-#
-#model.add(Conv1D(64, kernel_size=5, strides=1, padding='same', activation='relu'))
-#model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
-#model.add(Dropout(0.2))
-#
-#model.add(Conv1D(64, kernel_size=5, strides=1, padding='same', activation='relu'))
-#model.add(Conv1D(128, kernel_size=5, strides=1, padding='same', activation='relu'))
-#model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
-#
-#model.add(Conv1D(128, kernel_size=5, strides=1, padding='same', activation='relu'))
-#model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
-#
-#model.add(Conv1D(256, kernel_size=5, strides=1, padding='same', activation='relu'))
-#model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
-#
-#model.add(Conv1D(256, kernel_size=5, strides=1, padding='same', activation='relu'))
-#model.add(MaxPooling1D(pool_size=5, strides = 2, padding = 'same'))
-#
-#model.add(Conv1D(256, kernel_size=5, strides=1, padding='same', activation='relu'))
-#
-#model.add(LSTM(256, return_sequences=True))
-#model.add(LSTM(128))
-##model.add(LSTM(128))
-##model.add(LSTM(64))
-#
-#
-##model.add(Flatten())
-#
-#
-#
-#model.add(Dense(units=256, activation='relu'))
-#
-#model.add(Dense(units=128, activation='relu'))
-#
-#model.add(Dense(units=64, activation='relu'))
-#
-#model.add(Dense(units=32, activation='relu'))
-#model.add(Dropout(0.3))
-#
-#model.add(Dense(units=8, activation='softmax'))
-#model.compile(optimizer = 'adam' , loss = 'categorical_crossentropy' , metrics = ['accuracy'])
-#
-#model.summary()
-
-model = Sequential()
-
-model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(40, 65, 1)))
-model.add(BatchNormalization())
-model.add(MaxPooling2D((2, 2)))
-model.add(Dropout(0.25))
-
-# Second Cional Block
-model.add(Conv2D(32, (3, 3), activation='relu'))
-model.add(BatchNormalization())
-model.add(MaxPooling2D((2, 2)))
-model.add(Dropout(0.25))
-
-## Third Coonal Block
-#model.add(Conv2D(128, (3, 3), activation='relu'))
-#model.add(BatchNormalization())
-#model.add(MaxPooling2D((2, 2)))
-#model.add(Dropout(0.25))
-
-# Fully Co Block
-model.add(Flatten())
-model.add(Dense(32, activation='relu'))
-model.add(BatchNormalization())
-model.add(Dropout(0.5))
-#model.add(Dense(32, activation='relu'))
-#model.add(BatchNormalization())
-#model.add(Dropout(0.5))
-
-# Output L
-model.add(Dense(7, activation='softmax'))
-model.compile(optimizer = 'adam' , loss = 'categorical_crossentropy' , metrics = ['accuracy'])
-
-model.summary()
-
-
-rlrp = ReduceLROnPlateau(monitor='loss', factor=0.4, verbose=1, patience=2, min_lr=0.0000001)
-history=model.fit(x_train, y_train, batch_size=128, epochs=30, validation_data=(x_val, y_val), callbacks=[rlrp])
-#history = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=25, shuffle=True)
-
-
-print("Accuracy of our model on test data : " , model.evaluate(x_test,y_test)[1]*100 , "%")
-
-
-pred_test = model.predict(x_test)
-y_pred = encoder.inverse_transform(pred_test)
-y_test = encoder.inverse_transform(y_test)
-cm = confusion_matrix(y_test, y_pred)
-plt.figure(figsize = (12, 10))
-cm = pd.DataFrame(cm , index = [i for i in encoder.categories_] , columns = [i for i in encoder.categories_])
-sns.heatmap(cm, linecolor='white', cmap='Blues', linewidth=1, annot=True, fmt='')
-plt.title('Confusion Matrix', size=20)
-plt.xlabel('Predicted Labels', size=14)
-plt.ylabel('Actual Labels', size=14)
-plt.show()
-print(classification_report(y_test, y_pred))
-
-long_angry = "DataSets/long_angry_sample.mp3"
-data, sample_rate = librosa.load(long_angry)
-segs = split_audio(data, sample_rate, 2)
-seg_features = get_features_segments(segs, sample_rate)
-print("Check segmentation prediction:\n")
-predictions = classify_segments(seg_features, model)
-combined_prediction = combine_predictions(encoder.inverse_transform(predictions))
-print("Predictions ang are: " + str(encoder.inverse_transform(predictions)))
-print("Combined prediction is: " + str(combined_prediction))
-
+    # To load it back
+    print("########## THIS IS PRELOADED DATA, IF DATA WAS CHANGED NEED TO RUN FEATURE EXTRACTION AGAIN ##########")
+    X_train = np.load('features.npz')['X_train']
+    X_test = np.load('features.npz')['X_test']
+    Y_train = np.load('features.npz')['Y_train']
+    Y_test = np.load('features.npz')['Y_test']
+    
+    encoder = OneHotEncoder()
+    y_train = encoder.fit_transform(np.array(Y_train).reshape(-1,1)).toarray()
+    y_test = encoder.fit_transform(np.array(Y_test).reshape(-1,1)).toarray()
+    
+    
+    
+    X_train_scaled = applyScaler(X_train)
+    X_test_scaled = applyScaler(X_test)    
+    
+    
+    # Creating Validation data set
+    x_train, x_val, y_train, y_val = train_test_split(X_train_scaled, y_train, test_size=0.2, random_state=0, shuffle=False)
+    
+    model = Sequential()
+    
+    model.add(Conv2D(32, (3, 3), activation='relu', input_shape=x_train.shape[1:]))
+    model.add(BatchNormalization())
+    model.add(MaxPooling2D((2, 2)))
+    model.add(Dropout(0.25))
+    
+    # Second Cional Block
+    model.add(Conv2D(32, (3, 3), activation='relu'))
+    model.add(BatchNormalization())
+    model.add(MaxPooling2D((2, 2)))
+    model.add(Dropout(0.25))
+    
+    ## Third Coonal Block
+    #model.add(Conv2D(128, (3, 3), activation='relu'))
+    #model.add(BatchNormalization())
+    #model.add(MaxPooling2D((2, 2)))
+    #model.add(Dropout(0.25))
+    
+    # Fully Co Block
+    model.add(Flatten())
+    model.add(Dense(32, activation='relu'))
+    model.add(BatchNormalization())
+    model.add(Dropout(0.5))
+    #model.add(Dense(32, activation='relu'))
+    #model.add(BatchNormalization())
+    #model.add(Dropout(0.5))
+    
+    # Output L
+    model.add(Dense(7, activation='softmax'))
+    model.compile(optimizer = 'adam' , loss = 'categorical_crossentropy' , metrics = ['accuracy'])
+    
+    
+    model.summary()
+    
+    
+    rlrp = ReduceLROnPlateau(monitor='loss', factor=0.4, verbose=1, patience=2, min_lr=0.0000001)
+    history=model.fit(x_train, y_train, batch_size=128, epochs=15, validation_data=(x_val, y_val), callbacks=[rlrp])
+    #history = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=25, shuffle=True)
+    
+    
+    print("Accuracy of our model on test data : " , model.evaluate(X_test_scaled,y_test)[1]*100 , "%")
+    
+    
+    pred_test = model.predict(X_test_scaled)
+    y_pred = encoder.inverse_transform(pred_test)
+    y_test = encoder.inverse_transform(y_test)
+    cm = confusion_matrix(y_test, y_pred)
+    plt.figure(figsize = (12, 10))
+    cm = pd.DataFrame(cm , index = [i for i in encoder.categories_] , columns = [i for i in encoder.categories_])
+    sns.heatmap(cm, linecolor='white', cmap='Blues', linewidth=1, annot=True, fmt='')
+    plt.title('Confusion Matrix', size=20)
+    plt.xlabel('Predicted Labels', size=14)
+    plt.ylabel('Actual Labels', size=14)
+    plt.show()
+    print(classification_report(y_test, y_pred))
+    
+    ##saving the model
+    #model.save('SER Model.keras')
+    
+    long_angry = "DataSets/mad.mp3"
+    data, sample_rate = librosa.load(long_angry,offset=0.6, sr=16000)
+    segs = split_audio(data, sample_rate, 3)
+    seg_features = get_features_segments(segs, sample_rate)
+    padFeature(seg_features, x_train.shape[2])
+    seg_features = applyScaler(seg_features)
+    print("Check segmentation prediction:\n")
+    predictions = model.predict(np.array(seg_features))
+    combined_prediction = combine_predictions(encoder.inverse_transform(predictions))
+    print("Predictions ang are: " + str(encoder.inverse_transform(predictions)))
+    print("Combined prediction is: " + str(combined_prediction))
+    
 
 
