@@ -1,7 +1,5 @@
 import pandas as pd
 import numpy as np
-
-import os
 import sys
 
 # librosa is a Python library for analyzing audio and music. It can be used to extract the data from the audio files we will see it later.
@@ -14,16 +12,16 @@ from keras.models import save_model
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
+from sklearn.utils.class_weight import compute_class_weight
+
 
 # to play the audio files
 
 import keras
 from keras.callbacks import ReduceLROnPlateau
-from keras.models import Sequential
-from keras import regularizers
+from keras.models import Sequential, load_model
+from keras.regularizers import l2, l1
 
-import keras  # High-level neural networks API
-#from tensorflow.keras.utils import to_categorical  # Utility for one-hot encoding
 from keras.models import Sequential  # Sequential model for stacking layers
 from keras.layers import *  # Different layers for building neural networks
 
@@ -35,156 +33,6 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 ##############################################################################################################################################################
 
 print("SUCCESS - loading libraries")
-
-### load data
-Ravdess = "DataSets/RAVDESS/audio_speech_actors_01-24/"
-Crema = "DataSets/CREMA-D/AudioWAV/"
-Tess = "DataSets/TESS/TESS Toronto emotional speech set data/TESS Toronto emotional speech set data/"
-Savee = "DataSets/SAVEE/ALL/"
-print("SUCCESS - loading data")
-
-##############################################################################################################################################################
-### dataframe
-
-##################################     RAVDESS 
-ravdess_directory_list = os.listdir(Ravdess)
-
-file_emotion = []
-file_path = []
-for dir in ravdess_directory_list:
-    # as their are 20 different actors in our previous directory we need to extract files for each actor.
-    actor = os.listdir(Ravdess + dir)
-    for file in actor:
-        part = file.split('.')[0]
-        part = part.split('-')
-        # third part in each file represents the emotion associated to that file.
-        if int(part[2]) == 2:
-            continue
-        file_emotion.append(int(part[2]))
-        file_path.append(Ravdess + dir + '/' + file)
-        
-# dataframe for emotion of files
-emotion_df = pd.DataFrame(file_emotion, columns=['Emotions'])
-
-# dataframe for path of files.
-path_df = pd.DataFrame(file_path, columns=['Path'])
-Ravdess_df = pd.concat([emotion_df, path_df], axis=1)
-
-# changing integers to actual emotions.
-#Ravdess_df.Emotions.replace({1:'neutral', 2:'calm', 3:'happy', 4:'sad', 5:'angry', 6:'fear', 7:'disgust', 8:'surprise'}, inplace=True)
-Ravdess_df.Emotions.replace({1: 'neutral', 3: 'happy', 4: 'sad', 5: 'angry', 6: 'fear', 7: 'disgust', 8: 'surprise'}, inplace=True)
-
-print(Ravdess_df)
-
-##################################     CREMA 
-#crema_directory_list = os.listdir(Crema)
-#
-#file_emotion = []
-#file_path = []
-#
-#for file in crema_directory_list:
-#    # storing file paths
-#    file_path.append(Crema + file)
-#    # storing file emotions
-#    part=file.split('_')
-#    if part[2] == 'SAD':
-#        file_emotion.append('sad')
-#    elif part[2] == 'ANG':
-#        file_emotion.append('angry')
-#    elif part[2] == 'DIS':
-#        file_emotion.append('disgust')
-#    elif part[2] == 'FEA':
-#        file_emotion.append('fear')
-#    elif part[2] == 'HAP':
-#        file_emotion.append('happy')
-#    elif part[2] == 'NEU':
-#        file_emotion.append('neutral')
-#    else:
-#        file_emotion.append('Unknown')
-#        
-## dataframe for emotion of files
-#emotion_df = pd.DataFrame(file_emotion, columns=['Emotions'])
-#
-## dataframe for path of files.
-#path_df = pd.DataFrame(file_path, columns=['Path'])
-#Crema_df = pd.concat([emotion_df, path_df], axis=1)
-#print(Crema_df.head())
-#
-#
-##################################     TESS
-tess_directory_list = os.listdir(Tess)
-
-file_emotion = []
-file_path = []
-
-for dir in tess_directory_list:
-    directories = os.listdir(Tess + dir)
-    for file in directories:
-        part = file.split('.')[0]
-        part = part.split('_')[2]
-        if part=='ps':
-            file_emotion.append('surprise')
-        else:
-            file_emotion.append(part)
-        file_path.append(Tess + dir + '/' + file)
-        
-# dataframe for emotion of files
-emotion_df = pd.DataFrame(file_emotion, columns=['Emotions'])
-
-# dataframe for path of files.
-path_df = pd.DataFrame(file_path, columns=['Path'])
-Tess_df = pd.concat([emotion_df, path_df], axis=1)
-print(Tess_df.head()) 
-
-##################################     SAVEE
-savee_directory_list = os.listdir(Savee)
-
-file_emotion = []
-file_path = []
-
-for file in savee_directory_list:
-    file_path.append(Savee + file)
-    part = file.split('_')[1]
-    ele = part[:-6]
-    if ele=='a':
-        file_emotion.append('angry')
-    elif ele=='d':
-        file_emotion.append('disgust')
-    elif ele=='f':
-        file_emotion.append('fear')
-    elif ele=='h':
-        file_emotion.append('happy')
-    elif ele=='n':
-        file_emotion.append('neutral')
-    elif ele=='sa':
-        file_emotion.append('sad')
-    else:
-        file_emotion.append('surprise')
-        
-# dataframe for emotion of files
-emotion_df = pd.DataFrame(file_emotion, columns=['Emotions'])
-
-# dataframe for path of files.
-path_df = pd.DataFrame(file_path, columns=['Path'])
-Savee_df = pd.concat([emotion_df, path_df], axis=1)
-#print(Savee_df.head())
-#
-###  main dataframe
-#data_path = pd.concat([Ravdess_df, Crema_df, Tess_df, Savee_df], axis = 0)
-data_path = pd.concat([Ravdess_df,Savee_df ,Tess_df], axis = 0)
-data_path.to_csv("data_path.csv",index=False)
-print(data_path.head())
-print("########### FINISHED PREPPIN DATA #############")
-
-#sns.countplot(x='Emotions', data=data_path, palette='Set3')  # Specify 'Set3' palette for different colors
-#plt.title('Count of Emotions', size=16)
-#plt.xlabel('Emotions', size=12)
-#plt.ylabel('Count', size=12)
-#sns.despine(top=True, right=True, left=False, bottom=False)
-#
-#plt.xticks(rotation=45)  # Rotate x-axis labels if needed
-#plt.tight_layout()  # Adjust layout to prevent clipping of labels
-#plt.show()
 
 
 ##################################################################### augmentation and feature extraction functions
@@ -203,12 +51,26 @@ def shift(data):
 def pitch(data, sampling_rate, pitch_factor=0.7):
     return librosa.effects.pitch_shift(data, sr=sampling_rate, n_steps=pitch_factor)
 
-def extract_features(data,sample_rate):
+def extract_features(data, sample_rate):
+    mfcc = librosa.feature.mfcc(y=data, sr=sample_rate, n_mfcc=40)
+    mel_spec = librosa.feature.melspectrogram(y=data, sr=sample_rate, n_mels=128)
+    mel = librosa.power_to_db(mel_spec, ref=np.max)
+    
+    #mfcc = np.resize(mfcc, (128, mfcc.shape[1]))
+    mfcc = np.pad(mfcc, ((0, 88), (0, 0)), mode='constant')
+    mfcc = np.expand_dims(mfcc, axis=-1)
+    mel = np.expand_dims(mel, axis=-1)
+    # Stack the features along the channel dimension
+    combined_features = np.concatenate((mfcc, mel), axis=1)
+    return combined_features
+
+def extract_features_multi(data,sample_rate):
     mfcc = librosa.feature.mfcc(y=data, sr=sample_rate, n_mfcc=40)
     mel_spec = librosa.feature.melspectrogram(y=data, sr=sample_rate, n_mels=128)
     mel = librosa.power_to_db(mel_spec, ref=np.max)
 
-    mfcc = np.resize(mfcc, (128, mfcc.shape[1]))
+    #mfcc = np.resize(mfcc, (128, mfcc.shape[1]))
+    mfcc = np.pad(mfcc, ((0, 88), (0, 0)), mode='constant')
     mfcc = np.expand_dims(mfcc, axis=-1)
     mel = np.expand_dims(mel, axis=-1)
     # Stack the features along the channel dimension
@@ -227,20 +89,22 @@ def padFeature(features, shape = None): #padding function the make shape equal
             temp = np.zeros((feature.shape[0], max_length, feature.shape[2]))
             temp[:, :current_length,:] = feature
             features[i] = temp
+        else:
+            features[i] = feature[:, :max_length, :]
 
 def get_features(path):
     # duration and offset are used to take care of the no audio in start and the ending of each audio files as seen above.
-    data, sample_rate = librosa.load(path, duration=3, offset=0.6, sr=16000)
+    data, sample_rate = librosa.load(path, duration=2, offset=0.6, sr=16000)
     
     # without augmentation
-    res1 = extract_features(data,sample_rate)
+    res1 = extract_features_multi(data,sample_rate)
     result = np.array(res1)
     ress = []
     ress.append(res1)
     
     # data with noise
     noise_data = noise(data)
-    res2 = extract_features(noise_data,sample_rate)
+    res2 = extract_features_multi(noise_data,sample_rate)
     result = np.vstack((result, res2)) # stacking vertically
     ress.append(res2)
 
@@ -248,19 +112,33 @@ def get_features(path):
     # data with stretching and pitching
     #new_data = stretch(data)
     data_stretch_pitch = pitch(data, sample_rate)
-    res3 = extract_features(data_stretch_pitch,sample_rate)
+    res3 = extract_features_multi(data_stretch_pitch,sample_rate)
     result = np.vstack((result, res3)) # stacking vertically
     ress.append(res3)
     
     return ress
 
 def get_clean_features(path):
-    data, sample_rate = librosa.load(path, duration=3, offset=0.6, sr=16000)
+    data, sample_rate = librosa.load(path, duration=2, offset=0.6, sr=16000)
     
     # without augmentation
-    res1 = extract_features(data,sample_rate)
+    res1 = extract_features_multi(data,sample_rate)
     result = np.array(res1)
     return result
+
+def applyScalerSingle(data):
+    data = np.array(data)
+    # Reshape the data to 2D for scaling
+    data_2d = data.reshape(-1, data.shape[1] * data.shape[2])
+
+    # Scale the data
+    scaler = StandardScaler()
+    data_scaled = scaler.fit_transform(data_2d)
+
+    # Reshape back to the original 3D shape
+    data_scaled = data_scaled.reshape(-1, data.shape[1], data.shape[2])
+
+    return data_scaled
 
 def applyScaler(data):
     mfcc_features = np.array(data)[..., 0]
@@ -313,7 +191,7 @@ def split_audio(data, sr, seg_duration):
 def get_features_segments(segments, sr): 
     features = []
     for seg in segments:
-        seg_features = np.array(extract_features(seg, sr))
+        seg_features = np.array(extract_features_multi(seg, sr))
         features.append(seg_features)
     #padFeature(features)
     return features
@@ -322,81 +200,153 @@ def combine_predictions(predictions):
     unique_classes, counts = np.unique(predictions, return_counts=True)
     most_frequent_class = unique_classes[np.argmax(counts)]
     return most_frequent_class
+def show_graphs(test, pred):
+        cm = confusion_matrix(test, pred)
+        plt.figure(figsize = (12, 10))
+        cm = pd.DataFrame(cm , index = [i for i in encoder.categories_] , columns = [i for i in encoder.categories_])
+        sns.heatmap(cm, linecolor='white', cmap='Blues', linewidth=1, annot=True, fmt='')
+        plt.title('Confusion Matrix', size=20)
+        plt.xlabel('Predicted Labels', size=14)
+        plt.ylabel('Actual Labels', size=14)
+        plt.show()
+        print(classification_report(test, pred))
+        
+        loss_values = history.history['loss']
+        val_loss_values = history.history['val_loss']
+        accuracy_values = history.history['accuracy']
+        val_accuracy_values = history.history['val_accuracy']
+        max_val_accuracy = max(val_accuracy_values)
+    
+        plt.figure()
+        plt.subplot(2,1,1)
+        plt.plot(loss_values, label='Training Loss')
+        plt.plot(val_loss_values, label='Validation Loss')
+        plt.title('Training and Validation Loss')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.legend()
+        plt.grid(True)
+    
+        plt.subplot(2,1,2)
+        plt.plot(accuracy_values, label='Training Accuracy')
+        plt.plot(val_accuracy_values, label='Validation Accuracy')
+        plt.title('Training and Validation Accuracy')
+        plt.xlabel('Epochs')
+        plt.ylabel('Accuracy')
+        plt.legend()
+        plt.grid(True)
+        
+        plt.annotate(f'Max Val Acc: {max_val_accuracy:.4f}', 
+                 xy=(len(val_accuracy_values)-1, max_val_accuracy),
+                 xytext=(len(val_accuracy_values)-1, max_val_accuracy - 0.1),
+                 arrowprops=dict(facecolor='red', arrowstyle="->"))
+    
+        plt.show()
 
 if __name__ == "__main__":
-    #X_train, Y_train = [], []
-    #X_test, Y_test = [], []
-    #
-    ## Split the data into training and testing sets
-    #train_paths, test_paths, train_emotions, test_emotions = train_test_split(data_path.Path, data_path.Emotions, random_state=0, shuffle=True)
-    ## Iterate over training data paths and emotions
-    #for path, emotion in zip(train_paths, train_emotions):
-    #    # Extract features from the original audio sample
-    #    features = get_features(path)
-    #    for ele in features:
-    #        X_train.append(ele)
-    #        Y_train.append(emotion)
-    ## Iterate over testing data paths and emotions
-    #for path, emotion in zip(test_paths, test_emotions):
-    #    # Extract features from the original audio sample
-    #    features = get_clean_features(path)
-    #    X_test.append(features)
-    #    Y_test.append(emotion)
-    #    
-    #
-    #padFeature(X_train)
-    #padFeature(X_test)
-    #    
-    #np.savez('features.npz', X_train=X_train, X_test=X_test, Y_train = Y_train, Y_test = Y_test)
+    X_train, Y_train = [], []
+    X_test, Y_test = [], []
+    X_val, Y_val = [], []
+    data_path = pd.read_csv('data_path.csv')
+    print("\n#####Current data is read from CSV, if changes were made update the csv file#####\n\n")
+    # Split the data into training and testing sets
+    #for path in data_path.Path:
+    #    delete_if_empty(path)
+    train_paths, test_paths, train_emotions, test_emotions = train_test_split(data_path.Path, data_path.Emotions, random_state=0, shuffle=True)
+    train_paths, x_val_paths, train_emotions, y_val_emotions = train_test_split(train_paths, train_emotions, test_size=0.2, random_state=0, shuffle=True)
+    # Iterate over training data paths and emotions
+    for path, emotion in zip(train_paths, train_emotions):
+        # Extract features from the original audio sample
+        features = get_features(path)
+        for ele in features:
+            X_train.append(ele)
+            Y_train.append(emotion)
+    # Iterate over testing data paths and emotions
+    for path, emotion in zip(test_paths, test_emotions):
+        # Extract features from the original audio sample
+        features = get_clean_features(path)
+        X_test.append(features)
+        Y_test.append(emotion)
+        #features = get_features(path)
+        #for ele in features:
+        #    X_test.append(ele)
+        #    Y_test.append(emotion)
+    for path, emotion in zip(x_val_paths, y_val_emotions):
+        # Extract features from the original audio sample
+        features = get_features(path)
+        for ele in features:
+            X_val.append(ele)
+            Y_val.append(emotion)
+        
     
+    padFeature(X_train)
+    padFeature(X_test)
+    padFeature(X_val)
+    #    
+    #np.savez('features.npz', X_train=X_train, X_test=X_test, X_val = X_val, Y_train = Y_train, Y_test = Y_test, Y_val = Y_val)
+    #
     
     # To load it back
-    print("########## THIS IS PRELOADED DATA, IF DATA WAS CHANGED NEED TO RUN FEATURE EXTRACTION AGAIN ##########")
-    X_train = np.load('features.npz')['X_train']
-    X_test = np.load('features.npz')['X_test']
-    Y_train = np.load('features.npz')['Y_train']
-    Y_test = np.load('features.npz')['Y_test']
-    
+   #print("########## THIS IS PRELOADED DATA, IF DATA WAS CHANGED NEED TO RUN FEATURE EXTRACTION AGAIN ##########")
+   #X_train = np.load('features.npz')['X_train']
+   #X_test = np.load('features.npz')['X_test']
+   #Y_train = np.load('features.npz')['Y_train']
+   #Y_test = np.load('features.npz')['Y_test']
+   #X_val = np.load('features.npz')['X_val']
+   #Y_val = np.load('features.npz')['Y_val']
+
     encoder = OneHotEncoder()
     y_train = encoder.fit_transform(np.array(Y_train).reshape(-1,1)).toarray()
     y_test = encoder.fit_transform(np.array(Y_test).reshape(-1,1)).toarray()
+    y_val = encoder.fit_transform(np.array(Y_val).reshape(-1,1)).toarray()
     
     
     
-    X_train_scaled = applyScaler(X_train)
-    X_test_scaled = applyScaler(X_test)    
+    x_train = applyScaler(X_train)
+    x_test= applyScaler(X_test)    
+    x_val = applyScaler(X_val)
+    
+    #x_train = np.expand_dims(x_train, -1)
+    #x_test = np.expand_dims(x_test, -1)
+    #x_val = np.expand_dims(x_val, -1)
+
     
     
     # Creating Validation data set
-    x_train, x_val, y_train, y_val = train_test_split(X_train_scaled, y_train, test_size=0.2, random_state=0, shuffle=False)
+    #x_train, x_val, y_train, y_val = train_test_split(X_train_scaled, y_train, test_size=0.2, random_state=0, shuffle=True)
     
     model = Sequential()
     
-    model.add(Conv2D(32, (3, 3), activation='relu', input_shape=x_train.shape[1:]))
+    model.add(Conv2D(64, (3, 3), activation='relu',kernel_regularizer=l2(0.03),  input_shape=x_train.shape[1:]))
     model.add(BatchNormalization())
     model.add(MaxPooling2D((2, 2)))
     model.add(Dropout(0.25))
     
-    # Second Cional Block
-    model.add(Conv2D(32, (3, 3), activation='relu'))
+    model.add(Conv2D(32, (3, 3), activation='relu', kernel_regularizer=l1(0.03)))
     model.add(BatchNormalization())
     model.add(MaxPooling2D((2, 2)))
     model.add(Dropout(0.25))
     
-    ## Third Coonal Block
-    #model.add(Conv2D(128, (3, 3), activation='relu'))
-    #model.add(BatchNormalization())
-    #model.add(MaxPooling2D((2, 2)))
-    #model.add(Dropout(0.25))
+    model.add(Conv2D(32, (3, 3), activation='relu', kernel_regularizer=l2(0.03)))
+    model.add(BatchNormalization())
+    model.add(MaxPooling2D((2, 2)))
+    
+    
+    
     
     # Fully Co Block
     model.add(Flatten())
+    model.add(Dense(128, activation='relu'))
+    model.add(BatchNormalization())
+    model.add(Dropout(0.3))
+    model.add(Dense(64, activation='relu'))
+    model.add(BatchNormalization())
+    model.add(Dropout(0.35))
     model.add(Dense(32, activation='relu'))
     model.add(BatchNormalization())
-    model.add(Dropout(0.5))
-    #model.add(Dense(32, activation='relu'))
-    #model.add(BatchNormalization())
-    #model.add(Dropout(0.5))
+    model.add(Dense(32, activation='relu'))
+    model.add(BatchNormalization())
+    model.add(Dropout(0.3))
     
     # Output L
     model.add(Dense(7, activation='softmax'))
@@ -405,42 +355,51 @@ if __name__ == "__main__":
     
     model.summary()
     
-    
+    class_weights = compute_class_weight('balanced', classes=np.unique(Y_train), y=Y_train)
+    class_weights_dict = dict(enumerate(class_weights))
     rlrp = ReduceLROnPlateau(monitor='loss', factor=0.4, verbose=1, patience=2, min_lr=0.0000001)
-    history=model.fit(x_train, y_train, batch_size=128, epochs=15, validation_data=(x_val, y_val), callbacks=[rlrp])
+    history=model.fit(x_train, y_train, batch_size=128, epochs=40, validation_data=(x_val, y_val),class_weight=class_weights_dict)#, callbacks=[rlrp])
     #history = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=25, shuffle=True)
     
+    print("Accuracy of our model on VALIDATION data : " , model.evaluate(x_val,y_val)[1]*100 , "%")
+    #print("Accuracy of our model on test data : " , model.evaluate(x_test,y_test)[1]*100 , "%")
     
-    print("Accuracy of our model on test data : " , model.evaluate(X_test_scaled,y_test)[1]*100 , "%")
+    pred_val = model.predict(x_val)
+    y_pred = encoder.inverse_transform(pred_val)
+    y_val = encoder.inverse_transform(y_val)
+    #pred_test = model.predict(x_test)
+    #y_pred = encoder.inverse_transform(pred_test)
+    #y_test = encoder.inverse_transform(y_test)
+    show_graphs(y_val, y_pred)
+    #
+    ###saving the model
+    ##model.save('SER Model.keras')
+    #model = load_model('SER Model.keras')
     
-    
-    pred_test = model.predict(X_test_scaled)
-    y_pred = encoder.inverse_transform(pred_test)
-    y_test = encoder.inverse_transform(y_test)
-    cm = confusion_matrix(y_test, y_pred)
-    plt.figure(figsize = (12, 10))
-    cm = pd.DataFrame(cm , index = [i for i in encoder.categories_] , columns = [i for i in encoder.categories_])
-    sns.heatmap(cm, linecolor='white', cmap='Blues', linewidth=1, annot=True, fmt='')
-    plt.title('Confusion Matrix', size=20)
-    plt.xlabel('Predicted Labels', size=14)
-    plt.ylabel('Actual Labels', size=14)
-    plt.show()
-    print(classification_report(y_test, y_pred))
-    
-    ##saving the model
-    #model.save('SER Model.keras')
-    
-    long_angry = "DataSets/mad.mp3"
+    long_angry = "DataSets/AngryInterview.mp3"
     data, sample_rate = librosa.load(long_angry,offset=0.6, sr=16000)
-    segs = split_audio(data, sample_rate, 3)
+    segs = split_audio(data, sample_rate, 2)
     seg_features = get_features_segments(segs, sample_rate)
     padFeature(seg_features, x_train.shape[2])
     seg_features = applyScaler(seg_features)
-    print("Check segmentation prediction:\n")
+    #seg_features = np.expand_dims(seg_features,-1)
+    print("Check segmentation prediction LONG INTERVIEW:\n")
     predictions = model.predict(np.array(seg_features))
     combined_prediction = combine_predictions(encoder.inverse_transform(predictions))
     print("Predictions ang are: " + str(encoder.inverse_transform(predictions)))
     print("Combined prediction is: " + str(combined_prediction))
     
-
+    long_angry = "DataSets/WalterWhiteKnocks.mp3"
+    data, sample_rate = librosa.load(long_angry,offset=0.6, sr=16000)
+    segs = split_audio(data, sample_rate, 2)
+    seg_features = get_features_segments(segs, sample_rate)
+    padFeature(seg_features, x_train.shape[2])
+    seg_features = applyScaler(seg_features)
+    #seg_features = np.expand_dims(seg_features,-1)
+    print("Check segmentation prediction WALTER WHITE:\n")
+    predictions = model.predict(np.array(seg_features))
+    combined_prediction = combine_predictions(encoder.inverse_transform(predictions))
+    print("Predictions ang are: " + str(encoder.inverse_transform(predictions)))
+    print("Combined prediction is: " + str(combined_prediction))
+  
 
