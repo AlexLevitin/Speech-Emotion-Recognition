@@ -104,6 +104,7 @@ recording_state = {
 
 
 def plot_waveform_as_bars(
+        self,
         canvas: Canvas, 
         x1: int, y1: int, x2: int, y2: int, 
         audio_data: np.ndarray = None, 
@@ -189,7 +190,7 @@ def plot_waveform_as_bars(
         canvas.create_rectangle(line_x, middle_y - bar_height, line_x + bar_width,
                                  middle_y + bar_height, fill="#B5EBE9", outline="",
                                    tags=(tag, f"bar_{i}"))
-    highlight_bar(canvas, current_bar_index)
+    highlight_bar(self, canvas, current_bar_index)
     audio_window["start"] = 0
     audio_window["end"] = len(audio_data)
     audio_len = len(audio_data)
@@ -232,11 +233,11 @@ def update_highlighted_bar(self, event, canvas):
             percentage_idx += 1
         update_persentages(self)
         
-    highlight_bar(canvas, index)
+    highlight_bar(self, canvas, index)
 
-def highlight_bar(canvas: Canvas, index, color = "#B5EBE9"):
+def highlight_bar(self, canvas: Canvas, index, color = "#B5EBE9"):
     """Highlight a specific bar and reset the previous one."""
-    global current_bar_index
+    global current_bar_index, percentage_idx
 
     current_bar_index = int(current_bar_index)
     if is_analyzed :
@@ -245,6 +246,10 @@ def highlight_bar(canvas: Canvas, index, color = "#B5EBE9"):
             canvas.itemconfig(f"bar_{current_bar_index-1}", fill=ploted_emotion[current_bar_index-1])
         if index != 298:
             canvas.itemconfig(f"bar_{current_bar_index+1}", fill=ploted_emotion[current_bar_index+1])
+
+        while ((index * plot_step) + audio_window["start"]) / sampling_rate >= segment_predictions[percentage_idx]["timestamp"]:
+            percentage_idx += 1
+        update_persentages(self)
 
     # Return to the old color
     else :
@@ -324,9 +329,10 @@ def upload_audio_file(
 
         current_bar_index = 0
         # Plot the new waveform with the same tag
-        plot_waveform_as_bars(main_canvas, graph_x, graph_y + 20, graph_x_end, graph_y_end - 20, audio_data=audio_data, tag="audio_waveform", button=button)
+        plot_waveform_as_bars(self, main_canvas, graph_x, graph_y + 20, graph_x_end, graph_y_end - 20, audio_data=audio_data, tag="audio_waveform", button=button)
         # Plot mel scale while reset for the beggining
         create_spectrum_visualizer(spectrum_canvas, x=10, y=10, width=180, height=130, bars=15, reset=True)
+        update_persentages(self, True)
 
 def format_time(seconds):
     """Converts a duration in seconds to mm:ss format."""
@@ -463,8 +469,10 @@ def toggle_record(
         is_analyzed = False
         current_bar_index = 0
         # Plot the new waveform with the same tag
-        plot_waveform_as_bars(canvas, x1, y1 + 20, x2, y2 - 20, audio_data=audio_data, tag="audio_waveform", button=play_btn)
+        plot_waveform_as_bars(self, canvas, x1, y1 + 20, x2, y2 - 20, audio_data=audio_data, tag="audio_waveform", button=play_btn)
         create_spectrum_visualizer(spectrum_canvas, x=10, y=10, width=180, height=130, bars=15, reset=True)
+        update_persentages(self, True)
+
 
 def reset_graph(self, graph_name_label, graph_time_label, main_canvas, graph_x, graph_y, graph_x_end, graph_y_end, highlight_frame, scroll_canvas):
     """
@@ -496,7 +504,7 @@ def reset_graph(self, graph_name_label, graph_time_label, main_canvas, graph_x, 
     # Reset the graph area
     is_zoomable = False
     main_canvas.delete("audio_waveform")
-    reset_plot_waveform_as_bars(main_canvas, graph_x, graph_y+20, graph_x_end, graph_y_end-20)
+    reset_plot_waveform_as_bars(self, main_canvas, graph_x, graph_y+20, graph_x_end, graph_y_end-20)
 
 def play_audio(self, button, canvas, bar_width=1, spacing=1, graph_time: Label = None, spectrum_canvas: Canvas = None):
     """
@@ -546,8 +554,8 @@ def play_audio(self, button, canvas, bar_width=1, spacing=1, graph_time: Label =
             # Ensure the output fits the stream
             outdata[:len(frame_data)] = frame_data.reshape(-1, 1)
             if end_sample >= len(audio_data):
-                highlight_bar(canvas, 1)
-                highlight_bar(canvas,0)
+                highlight_bar(self, canvas, 1)
+                highlight_bar(self, canvas,0)
                 create_spectrum_visualizer(spectrum_canvas, x=10, y=10, width=180, height=130, bars=15, reset=True)
                 if is_analyzed: 
                     percentage_idx = 0
@@ -560,7 +568,7 @@ def play_audio(self, button, canvas, bar_width=1, spacing=1, graph_time: Label =
             calc_index = (audio_window["sample_place"] - audio_window["start"]) // plot_step
             # Update the current playing bar index
             if current_bar_index != calc_index:
-                highlight_bar(canvas, calc_index)
+                highlight_bar(self, canvas, calc_index)
                 if zooming_level != 0 :
                     update_zoom_graph(canvas)
 
@@ -634,7 +642,7 @@ def stop_audio_playback(self, canvas, button, graph_time, spectrum_canvas):
 
     stop_playback(button, graph_time)
     # Highlight the first bar on the waveform
-    highlight_bar(canvas, 0)
+    highlight_bar(self, canvas, 0)
     if is_analyzed: 
         percentage_idx = 0
         update_persentages(self)
@@ -676,7 +684,7 @@ def zoom_out(canvas):
 
     if zooming_level == 0:
         canvas.delete("audio_waveform")
-        plot_waveform_as_bars(canvas, x1, y1, x2, y2, audio_data)
+        plot_waveform_as_bars(self, canvas, x1, y1, x2, y2, audio_data)
         if is_analyzed :
             zoomed_emotions(canvas)
         return
@@ -799,7 +807,7 @@ def zooming(canvas):
     plot_waveform_window(canvas)
     if is_analyzed :
         zoomed_emotions(canvas)
-    highlight_bar(canvas, round((audio_window["sample_place"] - audio_window["start"]) // plot_step))
+    highlight_bar(self, canvas, round((audio_window["sample_place"] - audio_window["start"]) // plot_step))
 
 def create_spectrum_visualizer(canvas: Canvas, x: int, y: int, width: int, height: int, bars: int = 15, spacing: int = 5, reset: bool = False):
     """
@@ -909,7 +917,7 @@ def extract_emotion_predictions_from_data(
             zooming_level = 0
             x1, y1, x2, y2 = graph_cords
             canvas.delete("audio_waveform")
-            plot_waveform_as_bars(canvas, x1, y1, x2, y2, audio_data)
+            plot_waveform_as_bars(self, canvas, x1, y1, x2, y2, audio_data)
         else :
             current_bar_index = 0
 
@@ -938,11 +946,13 @@ def extract_emotion_predictions_from_data(
             percentages = (prediction / np.sum(prediction)) * 100  # Normalize to percentage
             emotions_with_percentages = list(zip(encoder.categories_[0].tolist(), percentages.tolist()))
 
+            print(f"percenteages : {percentages}")
+            print(f"emotions_with: {emotions_with_percentages}")
             # Sort emotions by percentage in descending order
             sorted_emotions = sorted(emotions_with_percentages, key=lambda x: x[1], reverse=True)
             if timestamp <= audio_duration:
                 emotion_sample[sorted_emotions[0][0]].append(timestamp)
-            if audio_duration < 3:
+            elif audio_duration < 3:
                 emotion_sample[sorted_emotions[0][0]].append(audio_duration)
                 timestamp = audio_duration
 
@@ -1024,6 +1034,8 @@ def extract_emotion_predictions_from_data(
             button.configure(fg = emotion_colors[emotion])
         zoomed_emotions(canvas)
         is_analyzed = True
+        update_persentages(self)
+        print(f"segments : {segment_predictions}")
 
     except Exception as e:
         print(f"Error extracting emotion predictions: {e}")
@@ -1079,11 +1091,11 @@ def highlight_jump(timestamp, canvas):
     if is_zoomable:
         while zooming_level != 0:
             zoom_out(canvas)
-        highlight_bar(canvas,((timestamp)*sampling_rate)//plot_step)
+        highlight_bar(self, canvas,((timestamp)*sampling_rate)//plot_step)
         while zooming_window[zooming_level] != 10:
             zoom_in(canvas)
     else:
-        highlight_bar(canvas,((timestamp - 3)*sampling_rate)//plot_step)
+        highlight_bar(self, canvas,((timestamp - 3)*sampling_rate)//plot_step)
 
 def toggle_emotion(self, name, canvas):
     if is_analyzed:
@@ -1108,17 +1120,8 @@ def toggle_emotion(self, name, canvas):
         pass
 
 def update_persentages(self, delete = False):
-    colors = {
-            "angry": "#F12E2E",
-            "disgust": "#00C605",
-            "fear": "#B115AD",
-            "happy": "#FFD858",
-            "neutral": "#969A8D",
-            "sad": "#2E35F1",
-            "surprise": "#F1882E"
-        }
     if delete:
-        for index ,name in enumerate(segment_predictions[percentage_idx]["emotions"]):
+        for index ,name in enumerate(emotion_labels):
             self.emotion_precentage[name].configure(text = "0.00%")
     else:
         for index ,name in enumerate(segment_predictions[percentage_idx]["emotions"]):
