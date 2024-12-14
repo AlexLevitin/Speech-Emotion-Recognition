@@ -143,7 +143,7 @@ class AnalyzeFrame(Frame):
             activebackground="#28374A",
             bd=0,
             highlightthickness=0,
-            command=lambda: zoom_in(main_canvas)
+            command=lambda: zoom_in(self, main_canvas, spectrum_canvas)
         )
         zoom_in_button.place(x=graph_x_end - 25, y=282)
 
@@ -160,7 +160,7 @@ class AnalyzeFrame(Frame):
             activebackground="#28374A",
             bd=0,
             highlightthickness=0,
-            command=lambda: zoom_out(main_canvas)
+            command=lambda: zoom_out(self, main_canvas, spectrum_canvas)
         )
         zoom_out_button.place(x=graph_x_end - 50, y=282)
 
@@ -386,6 +386,7 @@ class AnalyzeFrame(Frame):
             command=lambda: extract_emotion_predictions_from_data(
                 self,
                 main_canvas, 
+                spectrum_canvas,
                 highlight_frame, 
                 scroll_canvas, 
                 play_button, 
@@ -433,9 +434,9 @@ class AnalyzeFrame(Frame):
         # Place the "Spectrum" label above the audio visualizer
         Label(
             self,
-            text="Spectrum Visualizer",
-            font=("Dubai Medium", 10, "bold"),
+            text="Emotion Live Histogram",
+            font=("Dubai Medium", 11, "bold"),
             bg="#C0C5B1",
             fg="#28374A",
             anchor='center'
-        ).place(x=40, y=465, height=20)  # Position above the under audio visualizer
+        ).place(x=13, y=465, height=20)  # Position above the under audio visualizer
