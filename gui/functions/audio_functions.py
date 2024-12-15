@@ -106,7 +106,7 @@ recording_state = {
 def plot_waveform_as_bars(
         self,
         canvas: Canvas,
-        spectrum_canvas,
+        emotions_hist_canvas,
         x1: int, y1: int, x2: int, y2: int, 
         audio_data: np.ndarray = None, 
         tag="audio_waveform",
@@ -191,12 +191,12 @@ def plot_waveform_as_bars(
         canvas.create_rectangle(line_x, middle_y - bar_height, line_x + bar_width,
                                  middle_y + bar_height, fill="#B5EBE9", outline="",
                                    tags=(tag, f"bar_{i}"))
-    highlight_bar(self, canvas, spectrum_canvas, current_bar_index)
+    highlight_bar(self, canvas, emotions_hist_canvas, current_bar_index)
     audio_window["start"] = 0
     audio_window["end"] = len(audio_data)
     audio_len = len(audio_data)
 
-def on_canvas_click(self, event, canvas, spectrum_canvas,  button, graph_time):
+def on_canvas_click(self, event, canvas, emotions_hist_canvas,  button, graph_time):
     """Handle click on the canvas to update the highlighted bar and pause playback."""
     global is_playing ,formatted_duration, plot_step
     index = (event.x-201)  // 2
@@ -205,11 +205,11 @@ def on_canvas_click(self, event, canvas, spectrum_canvas,  button, graph_time):
         # Update UI labels
         update_time = ((index * plot_step) + audio_window["start"]) // sampling_rate
         graph_time.config(text=f"🕒: {format_time(update_time)} / {formatted_duration}")
-        update_highlighted_bar(self, event, canvas, spectrum_canvas)
+        update_highlighted_bar(self, event, canvas, emotions_hist_canvas)
         if is_playing:
             stop_playback(button, None)  # Pause playback
     
-def on_mouse_drag(self, event, canvas, spectrum_canvas, button, graph_time):
+def on_mouse_drag(self, event, canvas, emotions_hist_canvas, button, graph_time):
     """Handle bar selection during drag and pause playback."""
     global is_playing ,formatted_duration, plot_step
     index = (event.x-201)  // 2
@@ -218,11 +218,11 @@ def on_mouse_drag(self, event, canvas, spectrum_canvas, button, graph_time):
         # Update UI labels
         update_time = ((index * plot_step) + audio_window["start"]) // sampling_rate
         graph_time.config(text=f"🕒: {format_time(update_time)} / {formatted_duration}")
-        update_highlighted_bar(self, event, canvas, spectrum_canvas)
+        update_highlighted_bar(self, event, canvas, emotions_hist_canvas)
         if is_playing:
            stop_playback(button, None)  # Pause playback
     
-def update_highlighted_bar(self, event, canvas, spectrum_canvas):
+def update_highlighted_bar(self, event, canvas, emotions_hist_canvas):
     """Update the bar highlight based on mouse position."""
     global current_bar_index, audio_window, percentage_idx, segment_predictions, emotion_live
     bar_width = 1
@@ -238,9 +238,9 @@ def update_highlighted_bar(self, event, canvas, spectrum_canvas):
             emotion_live[segment_predictions[percentage_idx]["emotions"][0]] += 1
         update_persentages(self)
         
-    highlight_bar(self, canvas, spectrum_canvas,  index)
+    highlight_bar(self, canvas, emotions_hist_canvas,  index)
 
-def highlight_bar(self, canvas: Canvas, spectrum_canvas : Canvas,  index, color = "#B5EBE9"):
+def highlight_bar(self, canvas: Canvas, emotions_hist_canvas : Canvas,  index, color = "#B5EBE9"):
     """Highlight a specific bar and reset the previous one."""
     global current_bar_index, percentage_idx, emotion_live
 
@@ -255,7 +255,7 @@ def highlight_bar(self, canvas: Canvas, spectrum_canvas : Canvas,  index, color 
         while ((index * plot_step) + audio_window["start"]) / sampling_rate >= segment_predictions[percentage_idx]["timestamp"]:
             percentage_idx += 1
             emotion_live[segment_predictions[percentage_idx]["emotions"][0]] += 1
-        update_spectrum_visualizer(spectrum_canvas)
+        update_emotions_hist(emotions_hist_canvas)
         update_persentages(self)
 
     # Return to the old color
@@ -284,7 +284,7 @@ def upload_audio_file(
         main_canvas: Canvas, 
         graph_x, graph_y, graph_x_end, graph_y_end, 
         highlight_frame,
-        spectrum_canvas,
+        emotions_hist_canvas,
         button,
         self
         ):
@@ -297,7 +297,7 @@ def upload_audio_file(
     - main_canvas: Canvas widget where the waveform is displayed.
     - graph_x, graph_y, graph_x_end, graph_y_end: Coordinates of the canvas area to plot the waveform.
     - highlight_frame: Frame widget to clear and display new highlights.
-    - spectrum_canvas : Canvas widget where the spectrum is displayed
+    - emotions_hist_canvas : Canvas widget where the spectrum is displayed
     """
     global audio_file_path, audio_file_name, audio_duration, audio_data, sampling_rate, formatted_duration, audio_window, emotion_live
     global current_bar_index , is_analyzed
@@ -332,14 +332,14 @@ def upload_audio_file(
         main_canvas.delete("audio_waveform")  # Delete any existing waveform tagged with "audio_waveform"
 
         # Binding functions
-        main_canvas.bind("<Button-1>", lambda event: on_canvas_click(self, event, main_canvas, spectrum_canvas, button, graph_time_label))
-        main_canvas.bind("<B1-Motion>", lambda event: on_mouse_drag(self, event, main_canvas, spectrum_canvas, button, graph_time_label))
+        main_canvas.bind("<Button-1>", lambda event: on_canvas_click(self, event, main_canvas, emotions_hist_canvas, button, graph_time_label))
+        main_canvas.bind("<B1-Motion>", lambda event: on_mouse_drag(self, event, main_canvas, emotions_hist_canvas, button, graph_time_label))
 
         current_bar_index = 0
         # Plot the new waveform with the same tag
-        plot_waveform_as_bars(self, main_canvas, spectrum_canvas, graph_x, graph_y + 20, graph_x_end, graph_y_end - 20, audio_data=audio_data, tag="audio_waveform", button=button)
+        plot_waveform_as_bars(self, main_canvas, emotions_hist_canvas, graph_x, graph_y + 20, graph_x_end, graph_y_end - 20, audio_data=audio_data, tag="audio_waveform", button=button)
         # Plot mel scale while reset for the beggining
-        create_spectrum_visualizer(spectrum_canvas, x=10, y=10, width=180, height=130, reset=True)
+        create_emotions_hist(emotions_hist_canvas, x=10, y=10, width=180, height=130, reset=True)
         update_persentages(self, True)
 
 def format_time(seconds):
@@ -432,7 +432,7 @@ def toggle_record(
                   graph_time_label, 
                   graph_bounds, 
                   highlight_frame, 
-                  spectrum_canvas,
+                  emotions_hist_canvas,
                   play_btn: Button,
                   self
                   ):
@@ -472,17 +472,17 @@ def toggle_record(
         canvas.delete("audio_waveform")        
 
         # Binding functions
-        canvas.bind("<Button-1>", lambda event: on_canvas_click(self, event, canvas, spectrum_canvas,play_btn, graph_time_label))
-        canvas.bind("<B1-Motion>", lambda event: on_mouse_drag(self, event, canvas, spectrum_canvas, play_btn, graph_time_label))
+        canvas.bind("<Button-1>", lambda event: on_canvas_click(self, event, canvas, emotions_hist_canvas,play_btn, graph_time_label))
+        canvas.bind("<B1-Motion>", lambda event: on_mouse_drag(self, event, canvas, emotions_hist_canvas, play_btn, graph_time_label))
 
         is_analyzed = False
         current_bar_index = 0
         # Plot the new waveform with the same tag
-        plot_waveform_as_bars(self, canvas, spectrum_canvas, x1, y1 + 20, x2, y2 - 20, audio_data=audio_data, tag="audio_waveform", button=play_btn)
-        create_spectrum_visualizer(spectrum_canvas, x=10, y=10, width=180, height=130, reset=True)
+        plot_waveform_as_bars(self, canvas, emotions_hist_canvas, x1, y1 + 20, x2, y2 - 20, audio_data=audio_data, tag="audio_waveform", button=play_btn)
+        create_emotions_hist(emotions_hist_canvas, x=10, y=10, width=180, height=130, reset=True)
         update_persentages(self, True)
 
-def reset_graph(self, graph_name_label, graph_time_label, main_canvas, graph_x, graph_y, graph_x_end, graph_y_end, highlight_frame, scroll_canvas):
+def reset_graph(self, graph_name_label, graph_time_label, main_canvas, graph_x, graph_y, graph_x_end, graph_y_end, highlight_frame, scroll_canvas, emotions_hist_canvas):
     """
     Resets the graph, clears highlights, and updates the graph name to default.
 
@@ -508,13 +508,14 @@ def reset_graph(self, graph_name_label, graph_time_label, main_canvas, graph_x, 
         bubbles(self)
     update_persentages(self, True)
     reset_highlights_frame(highlight_frame, scroll_canvas)
-
+    create_emotions_hist(emotions_hist_canvas, x=10, y=10, width=180, height=130)
+    
     # Reset the graph area
     is_zoomable = False
     main_canvas.delete("audio_waveform")
-    reset_plot_waveform_as_bars(self, main_canvas, graph_x, graph_y+20, graph_x_end, graph_y_end-20)
+    reset_plot_waveform_as_bars(main_canvas, graph_x, graph_y+20, graph_x_end, graph_y_end-20)
 
-def play_audio(self, button, canvas, bar_width=1, spacing=1, graph_time: Label = None, spectrum_canvas: Canvas = None):
+def play_audio(self, button, canvas, bar_width=1, spacing=1, graph_time: Label = None, emotions_hist_canvas: Canvas = None):
     """
     Toggle play/pause for the audio playback.
     - Plays audio from the `current_bar_index`.
@@ -552,7 +553,7 @@ def play_audio(self, button, canvas, bar_width=1, spacing=1, graph_time: Label =
             else:
                 spectrum = np.zeros_like(fft_data)  # Handle case where max is 0
             # Update the visualizer
-            update_spectrum_visualizer(spectrum_canvas)
+            update_emotions_hist(emotions_hist_canvas)
 
             # Scale audio data based on the global volume level
             volume_scale =  volume_level / 100.0
@@ -562,9 +563,9 @@ def play_audio(self, button, canvas, bar_width=1, spacing=1, graph_time: Label =
             # Ensure the output fits the stream
             outdata[:len(frame_data)] = frame_data.reshape(-1, 1)
             if end_sample >= len(audio_data):
-                highlight_bar(self, canvas, spectrum_canvas, 1)
-                highlight_bar(self, canvas, spectrum_canvas, 0)
-                create_spectrum_visualizer(spectrum_canvas, x=10, y=10, width=180, height=130, reset=True)
+                highlight_bar(self, canvas, emotions_hist_canvas, 1)
+                highlight_bar(self, canvas, emotions_hist_canvas, 0)
+                create_emotions_hist(emotions_hist_canvas, x=10, y=10, width=180, height=130, reset=True)
                 if is_analyzed: 
                     percentage_idx = 0
                     update_persentages(self)
@@ -579,7 +580,7 @@ def play_audio(self, button, canvas, bar_width=1, spacing=1, graph_time: Label =
             calc_index = (audio_window["sample_place"] - audio_window["start"]) // plot_step
             # Update the current playing bar index
             if current_bar_index != calc_index:
-                highlight_bar(self, canvas, spectrum_canvas, calc_index)
+                highlight_bar(self, canvas, emotions_hist_canvas, calc_index)
                 if zooming_level != 0 :
                     update_zoom_graph(canvas)
 
@@ -643,7 +644,7 @@ def create_volume_meter(canvas, x, y, width=180, initial_volume=50):
     canvas.tag_bind(dot, "<Button-1>", on_click)
     canvas.tag_bind(line, "<Button-1>", on_click)    
 
-def stop_audio_playback(self, canvas, button, graph_time, spectrum_canvas):
+def stop_audio_playback(self, canvas, button, graph_time, emotions_hist_canvas):
     """
     Stop the audio playback, reset the current bar index, and update UI elements.
     - Resets the play button to "▶".
@@ -653,17 +654,17 @@ def stop_audio_playback(self, canvas, button, graph_time, spectrum_canvas):
 
     stop_playback(button, graph_time)
     # Highlight the first bar on the waveform
-    highlight_bar(self, canvas, spectrum_canvas, 0)
+    highlight_bar(self, canvas, emotions_hist_canvas, 0)
     if is_analyzed: 
         percentage_idx = 0
         update_persentages(self)
         for name in emotion_live:
             emotion_live[name] = 0
         emotion_live[segment_predictions[percentage_idx]["emotions"][0]] += 1
-    create_spectrum_visualizer(spectrum_canvas, x=10, y=10, width=180, height=130, reset=True)
+    create_emotions_hist(emotions_hist_canvas, x=10, y=10, width=180, height=130, reset=True)
     current_bar_index = 0  # Reset to the beginning
 
-def zoom_in(self, canvas, spectrum_canvas):
+def zoom_in(self, canvas, emotions_hist_canvas):
     """
     - canvas: The canvas widget to update
     """
@@ -680,9 +681,9 @@ def zoom_in(self, canvas, spectrum_canvas):
     else : return
 
     audio_window["sample_place"] = current_bar_index * plot_step + audio_window["start"]
-    zooming(self, canvas, spectrum_canvas)
+    zooming(self, canvas, emotions_hist_canvas)
         
-def zoom_out(self ,canvas ,spectrum_canvas):
+def zoom_out(self ,canvas ,emotions_hist_canvas):
     """
     - canvas: The canvas widget to update
     """
@@ -698,13 +699,13 @@ def zoom_out(self ,canvas ,spectrum_canvas):
 
     if zooming_level == 0:
         canvas.delete("audio_waveform")
-        plot_waveform_as_bars(self, canvas, spectrum_canvas, x1, y1, x2, y2, audio_data)
+        plot_waveform_as_bars(self, canvas, emotions_hist_canvas, x1, y1, x2, y2, audio_data)
         if is_analyzed :
             zoomed_emotions(canvas)
         return
     
     audio_window["sample_place"] = current_bar_index * plot_step + audio_window["start"]
-    zooming(self ,canvas, spectrum_canvas)
+    zooming(self ,canvas, emotions_hist_canvas)
 
 def plot_waveform_window(
         canvas: Canvas, 
@@ -800,15 +801,15 @@ def update_zoom_graph(canvas):
         if is_analyzed :
             zoomed_emotions(canvas)
         
-def zooming(self, canvas, spectrum_canvas):
+def zooming(self, canvas, emotions_hist_canvas):
     #function for the zooming functions
     global audio_window, current_bar_index
 
     round_window = round(zooming_window[zooming_level]/2)
     if round_window * sampling_rate < audio_window["sample_place"] < audio_len - (round_window) * sampling_rate :
         # case the sample place is in good position create window around 
-        audio_window["start"] = audio_window["sample_place"] - (round_window) * sampling_rate
-        audio_window["end"] = audio_window["sample_place"] + (round_window) * sampling_rate
+        audio_window["start"] = int(audio_window["sample_place"] - (round_window) * sampling_rate)
+        audio_window["end"] = int(audio_window["sample_place"] + (round_window) * sampling_rate)
         
     elif audio_window["sample_place"] <= (round_window) * sampling_rate:
         # case window is on the left part, making room to the right
@@ -823,9 +824,9 @@ def zooming(self, canvas, spectrum_canvas):
     plot_waveform_window(canvas)
     if is_analyzed :
         zoomed_emotions(canvas)
-    highlight_bar(self, canvas, spectrum_canvas, round((audio_window["sample_place"] - audio_window["start"]) // plot_step))
+    highlight_bar(self, canvas, emotions_hist_canvas, round((audio_window["sample_place"] - audio_window["start"]) // plot_step))
 
-def create_spectrum_visualizer(canvas: Canvas, x: int, y: int, width: int, height: int, bars: int = 7, spacing: int = 5, reset: bool = False):
+def create_emotions_hist(canvas: Canvas, x: int, y: int, width: int, height: int, bars: int = 7, spacing: int = 5, reset: bool = False):
     """
     Draws a vertical spectrum visualizer with a specified number of bars and symbols above each bar.
     
@@ -867,7 +868,7 @@ def create_spectrum_visualizer(canvas: Canvas, x: int, y: int, width: int, heigh
             tags=("spectrum_symbol", f"symbol_{name}")
         )
 
-def update_spectrum_visualizer(canvas):
+def update_emotions_hist(canvas):
     """
     Updates the spectrum visualizer with the current sum of emotions.
 
@@ -930,7 +931,7 @@ def reset_highlights_frame(highlight_frame, scroll_canvas):
 def extract_emotion_predictions_from_data(
         self,
         canvas, 
-        spectrum_canvas,
+        emotions_hist_canvas,
         highlight_frame, 
         scroll_canvas, 
         play_btn, 
@@ -973,7 +974,7 @@ def extract_emotion_predictions_from_data(
             zooming_level = 0
             x1, y1, x2, y2 = graph_cords
             canvas.delete("audio_waveform")
-            plot_waveform_as_bars(self, canvas, spectrum_canvas, x1, y1, x2, y2, audio_data)
+            plot_waveform_as_bars(self, canvas, emotions_hist_canvas, x1, y1, x2, y2, audio_data)
         else :
             current_bar_index = 0
 
@@ -1036,7 +1037,7 @@ def extract_emotion_predictions_from_data(
                 time_label.grid(row=idx * 2, column=0, padx=(5, 0), sticky="w")
                 time_label.bind(
                     "<Button-1>",
-                    lambda event, timestamp = timestamp : highlight_jump(self, timestamp, canvas)
+                    lambda event, timestamp = timestamp : highlight_jump(self, timestamp, canvas, emotions_hist_canvas)
                 )
 
                 # Add clickable Emotion Label
@@ -1052,7 +1053,7 @@ def extract_emotion_predictions_from_data(
                 emotion_label.grid(row=idx * 2, column=1, padx=(5, 0), sticky="w")
                 emotion_label.bind(
                     "<Button-1>",
-                    lambda event, timestamp = timestamp : highlight_jump(self, timestamp, canvas)
+                    lambda event, timestamp = timestamp : highlight_jump(self, timestamp, canvas, emotions_hist_canvas)
                 )
 
                 # Add clickable Confidence Label
@@ -1068,7 +1069,7 @@ def extract_emotion_predictions_from_data(
                 confidence_label.grid(row=idx * 2, column=2, padx=(5, 0), sticky="w")
                 confidence_label.bind(
                     "<Button-1>",
-                    lambda event, timestamp = timestamp : highlight_jump(self, timestamp, canvas)
+                    lambda event, timestamp = timestamp : highlight_jump(self, timestamp, canvas, emotions_hist_canvas)
                 )
 
                 # Separator line
@@ -1142,15 +1143,15 @@ def bubbles(self):
         text_item_id = bubble_canvas.find_all()[1]  # Get the second item (the text)
         bubble_canvas.itemconfig(text_item_id, text=str(np.size(emotion_sample[name])))
 
-def highlight_jump(self, timestamp, canvas, spectrum_canvas):
+def highlight_jump(self, timestamp, canvas, emotions_hist_canvas):
     if is_zoomable:
         while zooming_level != 0:
-            zoom_out(canvas)
-        highlight_bar(self, canvas, spectrum_canvas, ((timestamp)*sampling_rate)//plot_step)
+            zoom_out(self, canvas, emotions_hist_canvas)
+        highlight_bar(self, canvas, emotions_hist_canvas, ((timestamp)*sampling_rate)//plot_step)
         while zooming_window[zooming_level] != 10:
-            zoom_in(canvas)
+            zoom_in(self, canvas, emotions_hist_canvas)
     else:
-        highlight_bar(self, canvas, spectrum_canvas,((timestamp - 3)*sampling_rate)//plot_step)
+        highlight_bar(self, canvas, emotions_hist_canvas,((timestamp - 3)*sampling_rate)//plot_step)
 
 def toggle_emotion(self, name, canvas):
     if is_analyzed:
