@@ -75,7 +75,7 @@ percentage_idx = 0
 is_playing = False
 playback_start_time = 0
 playback_stream = None
-volume_level = 0
+volume_level = 100
 
 # Global variables for plot
 zooming_window = None # in seconds
