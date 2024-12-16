@@ -84,6 +84,7 @@ is_zoomable = False
 zooming_level = 0
 zooming_size = None
 graph_cords = None
+threshold_value = 80
 
 audio_window = {
     "data" : None,
@@ -1019,7 +1020,7 @@ def extract_emotion_predictions_from_data(
 
             
 
-            if sorted_emotions[0][1] >= 80.0 and timestamp <= audio_duration:
+            if sorted_emotions[0][1] >= threshold_value and timestamp <= audio_duration:
                 # Format timestamp into mm:ss
                 minutes, seconds = divmod(int(timestamp), 60)
                 time_str = f"{minutes:02}:{seconds:02}"
@@ -1182,3 +1183,98 @@ def update_persentages(self, delete = False):
     else:
         for index ,name in enumerate(segment_predictions[percentage_idx]["emotions"]):
             self.emotion_precentage[name].configure(text = f"{segment_predictions[percentage_idx]['percentages'][index]:.2f}%")
+
+def adjust_threshold(change, self, main_canvas, emotions_hist_canvas, threshold_text, scroll_canvas, highlight_frame):
+    """
+    Adjust the threshold value and update the displayed text.
+
+    Args:
+    - change: Integer, +1 for increasing, -1 for decreasing the threshold.
+    - canvas: The canvas on which the threshold text is displayed.
+    - text_id: The ID of the text element to update.
+    """
+    global threshold_value
+
+    # Adjust the threshold value
+    threshold_value = max(0, min(100, threshold_value + change))  # Ensure it stays between 0% and 100%
+
+    # Update the text on the canvas
+    main_canvas.itemconfig(threshold_text, text=f"Threshold: {threshold_value}%")
+
+    if is_analyzed:
+        # Reset the scroll position to the top
+        scroll_canvas.yview_moveto(0)
+
+        # Clear previous highlights
+        for widget in highlight_frame.winfo_children():
+            widget.destroy()
+
+        for idx, prediction in enumerate(segment_predictions):
+            # Format timestamp into mm:ss
+            precentages = prediction["percentages"][0]
+            timestamp = prediction["timestamp"]
+            if idx == 0 and timestamp <= audio_duration:
+                timestamp = audio_duration
+            if precentages >= threshold_value and timestamp <= audio_duration:
+                if idx == 0 : timestamp = prediction["timestamp"]
+                minutes, seconds = divmod(int(timestamp), 60)
+                time_str = f"{minutes:02}:{seconds:02}"
+
+                # Add clickable Time Label
+                time_label = Label(
+                    highlight_frame,
+                    text=time_str,
+                    font=("Dubai Medium", 10),
+                    bg="#212E38",
+                    fg="white",
+                    width=6,
+                    anchor="w"
+                )
+                time_label.grid(row=idx * 2, column=0, padx=(5, 0), sticky="w")
+                time_label.bind(
+                    "<Button-1>",
+                    lambda event, timestamp = timestamp : highlight_jump(self, timestamp, main_canvas, emotions_hist_canvas)
+                )
+
+                # Add clickable Emotion Label
+                emotion_label = Label(
+                    highlight_frame,
+                    text=prediction['emotions'][0].capitalize(),
+                    font=("Dubai Medium", 10),
+                    bg="#212E38",
+                    fg="white",
+                    width=8,
+                    anchor="w"
+                )
+                emotion_label.grid(row=idx * 2, column=1, padx=(5, 0), sticky="w")
+                emotion_label.bind(
+                    "<Button-1>",
+                    lambda event, timestamp = timestamp : highlight_jump(self, timestamp, main_canvas, emotions_hist_canvas)
+                )
+
+                # Add clickable Confidence Label
+                confidence_label = Label(
+                    highlight_frame,
+                    text=f"{precentages:.1f}%",
+                    font=("Dubai Medium", 10),
+                    bg="#212E38",
+                    fg="white",
+                    width=10,
+                    anchor="w"
+                )
+                confidence_label.grid(row=idx * 2, column=2, padx=(5, 0), sticky="w")
+                confidence_label.bind(
+                    "<Button-1>",
+                    lambda event, timestamp = timestamp : highlight_jump(self, timestamp, main_canvas, emotions_hist_canvas)
+                )
+
+                # Separator line
+                Canvas(
+                    highlight_frame,
+                    height=1,
+                    width=180,
+                    bg="#3A3A3A",
+                    highlightthickness=0
+                ).grid(row=idx * 2 + 1, columnspan=3, padx=5, pady=2, sticky="ew")
+
+        

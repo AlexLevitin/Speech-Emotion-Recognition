@@ -229,6 +229,73 @@ class AnalyzeFrame(Frame):
             color="#28374A"
         )
         main_canvas.create_rectangle(graph_x_end+2, graph_y+20, 1002, graph_y_end-20, fill="#212E38", outline="")
+
+        # Create Section for the thresh hold of the highlighs
+        create_rounded_rectangle(
+            main_canvas,
+            x1= graph_x_end+2, y1=graph_y_end+1, x2=1002, y2=graph_y_end + 20,
+            radius=6,
+            color="#28374A"
+        )
+
+        # Add "Threshold" text in the middle
+        threshold_text = main_canvas.create_text(
+            (graph_x_end + 1002) / 2,  # Middle of the x-range
+            graph_y_end + 10,         # Middle of the y-range
+            text="Threshold: 80%",
+            font=("Dubai Medium", 10),
+            fill="#B5EBE9"
+        )
+
+        # Create "-" button on the left
+        minus_btn = Button(
+            main_canvas,
+            text="-",
+            font=("Dubai Medium", 12),
+            bg="#28374A",
+            fg="#B5EBE9",
+            activebackground="#212E38",
+            activeforeground="#FFFFFF",
+            bd=0,
+            command=lambda: adjust_threshold(
+                -1,
+                self,
+                main_canvas,
+                emotions_hist_canvas,
+                threshold_text,
+                scroll_canvas,
+                highlight_frame) 
+        )
+        minus_btn.place(
+            x=graph_x_end + 5,          # Left position
+            y=graph_y_end + 2,          # Top position
+            width=15, height=15         # Size of the button
+        )
+
+        # Create "+" button on the right
+        plus_btn = Button(
+            main_canvas,
+            text="+",
+            font=("Dubai Medium", 12),
+            bg="#28374A",
+            fg="#B5EBE9",
+            activebackground="#212E38",
+            activeforeground="#FFFFFF",
+            bd=0,
+            command=lambda: adjust_threshold(
+                1,
+                self,
+                main_canvas,
+                emotions_hist_canvas,
+                threshold_text,
+                scroll_canvas,
+                highlight_frame)  # Replace with your function
+        )
+        plus_btn.place(
+            x=1002 - 20,                # Right position (account for button width)
+            y=graph_y_end + 2,          # Top position
+            width=15, height=15         # Size of the button
+        )
         
         # Highlights Heading
         Label(self, 
