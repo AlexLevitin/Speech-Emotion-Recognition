@@ -55,7 +55,7 @@ class AnalyzeFrame(Frame):
                 graph_x, graph_y,
                 graph_x_end, graph_y_end,
                 highlight_frame,
-                spectrum_canvas,
+                emotions_hist_canvas,
                 play_button,
                 self
             ))
@@ -76,7 +76,7 @@ class AnalyzeFrame(Frame):
                 graph_time_label=graph_time, 
                 graph_bounds=(graph_x, graph_y , graph_x_end, graph_y_end), 
                 highlight_frame = highlight_frame,
-                spectrum_canvas= spectrum_canvas,
+                emotions_hist_canvas= emotions_hist_canvas,
                 play_btn=play_button,
                 self=self
             ))
@@ -100,7 +100,8 @@ class AnalyzeFrame(Frame):
                 graph_x_end=graph_x_end,
                 graph_y_end=graph_y_end,
                 highlight_frame=highlight_frame,
-                scroll_canvas=scroll_canvas
+                scroll_canvas=scroll_canvas,
+                emotions_hist_canvas=emotions_hist_canvas
             ))
         delete_button.place(x=5, y=201,width=194, height=249-200)
         # Lines to wrap Control Panel
@@ -143,7 +144,7 @@ class AnalyzeFrame(Frame):
             activebackground="#28374A",
             bd=0,
             highlightthickness=0,
-            command=lambda: zoom_in(main_canvas)
+            command=lambda: zoom_in(self, main_canvas, emotions_hist_canvas)
         )
         zoom_in_button.place(x=graph_x_end - 25, y=282)
 
@@ -160,7 +161,7 @@ class AnalyzeFrame(Frame):
             activebackground="#28374A",
             bd=0,
             highlightthickness=0,
-            command=lambda: zoom_out(main_canvas)
+            command=lambda: zoom_out(self, main_canvas, emotions_hist_canvas)
         )
         zoom_out_button.place(x=graph_x_end - 50, y=282)
 
@@ -202,7 +203,7 @@ class AnalyzeFrame(Frame):
             fg="#B5EBE9",
             bd=0,
             highlightthickness=0,
-            command=lambda: play_audio(self, play_button, main_canvas, bar_width=1, spacing=1, graph_time=graph_time, spectrum_canvas=spectrum_canvas)
+            command=lambda: play_audio(self, play_button, main_canvas, bar_width=1, spacing=1, graph_time=graph_time, emotions_hist_canvas=emotions_hist_canvas)
         )
         play_button.place(x=graph_x + 8, y=280,height=20, width=20)
 
@@ -216,7 +217,7 @@ class AnalyzeFrame(Frame):
             fg="#B5EBE9",
             bd=0,
             highlightthickness=0,
-            command=lambda: stop_audio_playback(self, main_canvas, play_button, graph_time, spectrum_canvas)
+            command=lambda: stop_audio_playback(self, main_canvas, play_button, graph_time, emotions_hist_canvas)
         )
         stop_button.place(x=graph_x + 25, y=280,height=20)        
 
@@ -228,6 +229,73 @@ class AnalyzeFrame(Frame):
             color="#28374A"
         )
         main_canvas.create_rectangle(graph_x_end+2, graph_y+20, 1002, graph_y_end-20, fill="#212E38", outline="")
+
+        # Create Section for the thresh hold of the highlighs
+        create_rounded_rectangle(
+            main_canvas,
+            x1= graph_x_end+2, y1=graph_y_end+1, x2=1002, y2=graph_y_end + 20,
+            radius=6,
+            color="#28374A"
+        )
+
+        # Add "Threshold" text in the middle
+        threshold_text = main_canvas.create_text(
+            (graph_x_end + 1002) / 2,  # Middle of the x-range
+            graph_y_end + 10,         # Middle of the y-range
+            text="Threshold: 80%",
+            font=("Dubai Medium", 10),
+            fill="#B5EBE9"
+        )
+
+        # Create "-" button on the left
+        minus_btn = Button(
+            main_canvas,
+            text="-",
+            font=("Dubai Medium", 12),
+            bg="#28374A",
+            fg="#B5EBE9",
+            activebackground="#212E38",
+            activeforeground="#FFFFFF",
+            bd=0,
+            command=lambda: adjust_threshold(
+                -1,
+                self,
+                main_canvas,
+                emotions_hist_canvas,
+                threshold_text,
+                scroll_canvas,
+                highlight_frame) 
+        )
+        minus_btn.place(
+            x=graph_x_end + 5,          # Left position
+            y=graph_y_end + 2,          # Top position
+            width=15, height=15         # Size of the button
+        )
+
+        # Create "+" button on the right
+        plus_btn = Button(
+            main_canvas,
+            text="+",
+            font=("Dubai Medium", 12),
+            bg="#28374A",
+            fg="#B5EBE9",
+            activebackground="#212E38",
+            activeforeground="#FFFFFF",
+            bd=0,
+            command=lambda: adjust_threshold(
+                1,
+                self,
+                main_canvas,
+                emotions_hist_canvas,
+                threshold_text,
+                scroll_canvas,
+                highlight_frame)  # Replace with your function
+        )
+        plus_btn.place(
+            x=1002 - 20,                # Right position (account for button width)
+            y=graph_y_end + 2,          # Top position
+            width=15, height=15         # Size of the button
+        )
         
         # Highlights Heading
         Label(self, 
@@ -365,14 +433,14 @@ class AnalyzeFrame(Frame):
         # Analyze Button rectangle
         create_rounded_rectangle(
             main_canvas,
-            x1=graph_x_end + 2, y1=graph_y_end + 5, x2=1000, y2=495,  # Adjusted height to fit inside main canvas
+            x1=graph_x_end + 2, y1=graph_y_end + 25, x2=1000, y2=495,  # Adjusted height to fit inside main canvas
             radius=7,
             color="#28374A"
         )
 
         # Load, resize, and set up Analyze icon
         original_analyze = Image.open(relative_to_assets("analyze.png"))
-        resized_analyze = original_analyze.resize((180, 150), Image.LANCZOS)
+        resized_analyze = original_analyze.resize((180, 130), Image.LANCZOS)
         self.analyze_icon = ImageTk.PhotoImage(resized_analyze)
 
         # Create Zoom In button
@@ -386,13 +454,14 @@ class AnalyzeFrame(Frame):
             command=lambda: extract_emotion_predictions_from_data(
                 self,
                 main_canvas, 
+                emotions_hist_canvas,
                 highlight_frame, 
                 scroll_canvas, 
                 play_button, 
                 graph_time
                 )
         )
-        analyze_button.place(x=graph_x_end + 10, y=graph_y_end + 20)
+        analyze_button.place(x=graph_x_end + 10, y=graph_y_end + 35)
 
         # Create the label under each button
         Label(
@@ -423,19 +492,19 @@ class AnalyzeFrame(Frame):
         create_volume_meter(volume_canvas, x=20, y=5, width=160, initial_volume=100)
 
         # Under Volume Meter - Mel Scale Visualizer
-        spectrum_canvas = Canvas(self, width=190, height=150, bg="#C0C5B1", highlightthickness=0, bd=0)
-        spectrum_canvas.place(x=5, y=310)
+        emotions_hist_canvas = Canvas(self, width=190, height=150, bg="#C0C5B1", highlightthickness=0, bd=0)
+        emotions_hist_canvas.place(x=5, y=310)
 
         # Initialize Mel Scale with default 15 bars
-        create_spectrum_visualizer(spectrum_canvas, x=10, y=10, width=180, height=130)
+        create_emotions_hist(emotions_hist_canvas, x=10, y=10, width=180, height=130)
 
 
         # Place the "Spectrum" label above the audio visualizer
         Label(
             self,
-            text="Spectrum Visualizer",
-            font=("Dubai Medium", 10, "bold"),
+            text="Emotion Live Histogram",
+            font=("Dubai Medium", 11, "bold"),
             bg="#C0C5B1",
             fg="#28374A",
             anchor='center'
-        ).place(x=40, y=465, height=20)  # Position above the under audio visualizer
+        ).place(x=13, y=465, height=20)  # Position above the under audio visualizer

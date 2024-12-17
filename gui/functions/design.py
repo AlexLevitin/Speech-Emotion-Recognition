@@ -37,7 +37,7 @@ def reset_graph_grid(canvas: Canvas, x1: int, y1: int, x2: int, y2: int, spacing
 
 def reset_plot_waveform_as_bars(canvas: Canvas, x1: int, y1: int, x2: int, y2: int, tag="audio_waveform"):
     """Plots a simple waveform as vertical bars on a canvas."""
-
+    
     # Draw vertical lines
     for index ,x in enumerate(np.linspace(x1, x2, 4)):
         if x == x1 or x == x2:
