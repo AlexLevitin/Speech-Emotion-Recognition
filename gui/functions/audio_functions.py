@@ -8,12 +8,17 @@ import numpy as np
 import tempfile
 from .design import *
 import time # Use system clock for timing
-from tensorflow.keras.models import load_model  # type: ignore
+from keras.models import load_model  # type: ignore
 from sklearn.preprocessing import OneHotEncoder  # For decoding predictions
 import SpeechEmotionRecognition as p2  # For your custom helper functions
+import sys
 
 # Load the pre-trained model
-model = load_model('SER Model.keras')
+if getattr(sys, 'frozen', False):  # If running from an executable
+    model_path = os.path.join(sys._MEIPASS, 'SER Model (1).keras')
+else:  # If running as a script
+    model_path = ('SER Model (1).keras')
+model = load_model(model_path)
 
 # Define the emotion labels
 emotion_labels = ['angry', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
@@ -925,9 +930,9 @@ def reset_highlights_frame(highlight_frame, scroll_canvas):
     time_str = f"{minutes:02}:{seconds:02}"
             
     # Adjusted "Time", "Emotion", and "Confidence" columns with smaller width
-    Label(highlight_frame, text=time_str, font=("Dubai Medium", 10), bg="#212E38", fg="white", width=6, anchor="w").grid(row=1*2, column=0, padx=(5, 0), sticky="w")
-    Label(highlight_frame, text="Example", font=("Dubai Medium", 10), bg="#212E38", fg="white", width=8, anchor="w").grid(row=1*2, column=1, padx=(5, 0), sticky="w")
-    Label(highlight_frame, text=f"80.{1}%", font=("Dubai Medium", 10), bg="#212E38", fg="white", width=10, anchor="w").grid(row=1*2, column=2, padx=(5, 0), sticky="w")
+    Label(highlight_frame, text=time_str, font=("Dubai Medium", 10), bg="#212E38", fg="white", width=6, anchor="w").grid(row=1*2, column=0, padx=(2, 0), sticky="w")
+    Label(highlight_frame, text="Example", font=("Dubai Medium", 10), bg="#212E38", fg="white", width=8, anchor="w").grid(row=1*2, column=1, padx=(2, 0), sticky="w")
+    Label(highlight_frame, text=f"80.{1}%", font=("Dubai Medium", 10), bg="#212E38", fg="white", width=10, anchor="w").grid(row=1*2, column=2, padx=(2, 0), sticky="w")
 
 def extract_emotion_predictions_from_data(
         self,
@@ -937,8 +942,9 @@ def extract_emotion_predictions_from_data(
         scroll_canvas, 
         play_btn, 
         graph_time,
-        segment_duration=3, 
-        max_length=94):
+        segment_duration=3,
+        overlap_duration=0.5, 
+        max_length=110):
     """
     Extract emotion predictions and their classification percentages for raw audio data.
 
@@ -980,7 +986,7 @@ def extract_emotion_predictions_from_data(
             current_bar_index = 0
 
         # Split audio into fixed-duration segments
-        segments = p2.split_audio(audio_data, sampling_rate, segment_duration)
+        segments = p2.split_audio(audio_data, sampling_rate, segment_duration, overlap_duration)
         # Extract features for each segment
         features = p2.get_features_segments(segments, sampling_rate)
         # Pad and scale features for model input
@@ -1008,7 +1014,7 @@ def extract_emotion_predictions_from_data(
             sorted_emotions = sorted(emotions_with_percentages, key=lambda x: x[1], reverse=True)
             if timestamp <= audio_duration:
                 emotion_sample[sorted_emotions[0][0]].append(timestamp)
-            elif audio_duration < 3:
+            else:
                 emotion_sample[sorted_emotions[0][0]].append(audio_duration)
                 timestamp = audio_duration
 
@@ -1035,7 +1041,7 @@ def extract_emotion_predictions_from_data(
                     width=6,
                     anchor="w"
                 )
-                time_label.grid(row=idx * 2, column=0, padx=(5, 0), sticky="w")
+                time_label.grid(row=idx * 2, column=0, padx=(2, 0), sticky="w")
                 time_label.bind(
                     "<Button-1>",
                     lambda event, timestamp = timestamp : highlight_jump(self, timestamp, canvas, emotions_hist_canvas)
@@ -1051,7 +1057,7 @@ def extract_emotion_predictions_from_data(
                     width=8,
                     anchor="w"
                 )
-                emotion_label.grid(row=idx * 2, column=1, padx=(5, 0), sticky="w")
+                emotion_label.grid(row=idx * 2, column=1, padx=(2, 0), sticky="w")
                 emotion_label.bind(
                     "<Button-1>",
                     lambda event, timestamp = timestamp : highlight_jump(self, timestamp, canvas, emotions_hist_canvas)
@@ -1067,7 +1073,7 @@ def extract_emotion_predictions_from_data(
                     width=10,
                     anchor="w"
                 )
-                confidence_label.grid(row=idx * 2, column=2, padx=(5, 0), sticky="w")
+                confidence_label.grid(row=idx * 2, column=2, padx=(2, 0), sticky="w")
                 confidence_label.bind(
                     "<Button-1>",
                     lambda event, timestamp = timestamp : highlight_jump(self, timestamp, canvas, emotions_hist_canvas)
@@ -1083,7 +1089,7 @@ def extract_emotion_predictions_from_data(
                 ).grid(row=idx * 2 + 1, columnspan=3, padx=5, pady=2, sticky="ew")
 
             # Increment timestamp by 2.5 seconds for the next segment
-            timestamp += segment_duration - 0.5
+            timestamp += segment_duration - overlap_duration
 
         bubbles(self)
         for emotion, button in self.emotion_btns.items() :
@@ -1230,7 +1236,7 @@ def adjust_threshold(change, self, main_canvas, emotions_hist_canvas, threshold_
                     width=6,
                     anchor="w"
                 )
-                time_label.grid(row=idx * 2, column=0, padx=(5, 0), sticky="w")
+                time_label.grid(row=idx * 2, column=0, padx=(2, 0), sticky="w")
                 time_label.bind(
                     "<Button-1>",
                     lambda event, timestamp = timestamp : highlight_jump(self, timestamp, main_canvas, emotions_hist_canvas)
@@ -1246,7 +1252,7 @@ def adjust_threshold(change, self, main_canvas, emotions_hist_canvas, threshold_
                     width=8,
                     anchor="w"
                 )
-                emotion_label.grid(row=idx * 2, column=1, padx=(5, 0), sticky="w")
+                emotion_label.grid(row=idx * 2, column=1, padx=(2, 0), sticky="w")
                 emotion_label.bind(
                     "<Button-1>",
                     lambda event, timestamp = timestamp : highlight_jump(self, timestamp, main_canvas, emotions_hist_canvas)
@@ -1262,7 +1268,7 @@ def adjust_threshold(change, self, main_canvas, emotions_hist_canvas, threshold_
                     width=10,
                     anchor="w"
                 )
-                confidence_label.grid(row=idx * 2, column=2, padx=(5, 0), sticky="w")
+                confidence_label.grid(row=idx * 2, column=2, padx=(2, 0), sticky="w")
                 confidence_label.bind(
                     "<Button-1>",
                     lambda event, timestamp = timestamp : highlight_jump(self, timestamp, main_canvas, emotions_hist_canvas)

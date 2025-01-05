@@ -317,7 +317,7 @@ class AnalyzeFrame(Frame):
                 font=("Dubai Medium", 10), 
                 bg="#28374A", 
                 fg="#B5EBE9"
-            ).place(x=heading_x_positions[i], y=graph_y_end-20, height=20, width=60)
+            ).place(x=heading_x_positions[i], y=graph_y_end-20, height=20, width=65)
 
         # Scrollable Frame for Highlights
         scroll_canvas = Canvas(self, width=170, height=graph_y_end-graph_y-40, bg="#212E38", bd=0, highlightthickness=0)
@@ -348,9 +348,9 @@ class AnalyzeFrame(Frame):
             time_str = f"{minutes:02}:{seconds:02}"
             
             # Adjusted "Time", "Emotion", and "Confidence" columns with smaller width
-            Label(highlight_frame, text=time_str, font=("Dubai Medium", 10), bg="#212E38", fg="white", width=6, anchor="w").grid(row=i*2, column=0, padx=(5, 0), sticky="w")
-            Label(highlight_frame, text="Example", font=("Dubai Medium", 10), bg="#212E38", fg="white", width=8, anchor="w").grid(row=i*2, column=1, padx=(5, 0), sticky="w")
-            Label(highlight_frame, text=f"80.{i}%", font=("Dubai Medium", 10), bg="#212E38", fg="white", width=10, anchor="w").grid(row=i*2, column=2, padx=(5, 0), sticky="w")
+            Label(highlight_frame, text=time_str, font=("Dubai Medium", 10), bg="#212E38", fg="white", width=6, anchor="w").grid(row=i*2, column=0, padx=(2, 0), sticky="w")
+            Label(highlight_frame, text="Example", font=("Dubai Medium", 10), bg="#212E38", fg="white", width=8, anchor="w").grid(row=i*2, column=1, padx=(2, 0), sticky="w")
+            Label(highlight_frame, text=f"80.{i}%", font=("Dubai Medium", 10), bg="#212E38", fg="white", width=10, anchor="w").grid(row=i*2, column=2, padx=(2, 0), sticky="w")
 
             # Separator line between each detail row
             Canvas(highlight_frame, height=1, width=180, bg="#3A3A3A", highlightthickness=0).grid(row=i*2+1, columnspan=3, padx=5, pady=2, sticky="ew")

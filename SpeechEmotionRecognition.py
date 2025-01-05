@@ -17,8 +17,6 @@ from sklearn.utils.class_weight import compute_class_weight
 
 # to play the audio files
 
-import keras
-from keras.callbacks import ReduceLROnPlateau
 from keras.models import Sequential, load_model
 from keras.regularizers import l2, l1
 
@@ -60,7 +58,6 @@ def extract_features(data, sample_rate):
     mfcc = np.pad(mfcc, ((0, 88), (0, 0)), mode='constant')
     mfcc = np.expand_dims(mfcc, axis=-1)
     mel = np.expand_dims(mel, axis=-1)
-    # Stack the features along the channel dimension
     combined_features = np.concatenate((mfcc, mel), axis=1)
     return combined_features
 
@@ -73,7 +70,7 @@ def extract_features_multi(data,sample_rate):
     mfcc = np.pad(mfcc, ((0, 88), (0, 0)), mode='constant')
     mfcc = np.expand_dims(mfcc, axis=-1)
     mel = np.expand_dims(mel, axis=-1)
-    # Stack the features along the channel dimension
+    # stack the features along the channel dimension
     combined_features = np.concatenate((mfcc, mel), axis=-1)
 
     return combined_features
@@ -128,14 +125,9 @@ def get_clean_features(path):
 
 def applyScalerSingle(data):
     data = np.array(data)
-    # Reshape the data to 2D for scaling
     data_2d = data.reshape(-1, data.shape[1] * data.shape[2])
-
-    # Scale the data
     scaler = StandardScaler()
     data_scaled = scaler.fit_transform(data_2d)
-
-    # Reshape back to the original 3D shape
     data_scaled = data_scaled.reshape(-1, data.shape[1], data.shape[2])
 
     return data_scaled
@@ -143,50 +135,32 @@ def applyScalerSingle(data):
 def applyScaler(data):
     mfcc_features = np.array(data)[..., 0]
     mel_features = np.array(data)[..., 1]
-    # Reshape for scaling
     mfcc_features_2d = mfcc_features.reshape(-1, 128 * mfcc_features.shape[2])
     mel_features_2d = mel_features.reshape(-1, 128 * mel_features.shape[2])
 
-    # Scale each channel separately
     scaler_mfcc = StandardScaler()
     scaler_mel = StandardScaler()
 
     mfcc_scaled = scaler_mfcc.fit_transform(mfcc_features_2d)
     mel_scaled = scaler_mel.fit_transform(mel_features_2d)
 
-    # Reshape back to 3D
     mfcc_scaled = mfcc_scaled.reshape(-1, 128, mfcc_features.shape[2])
     mel_scaled = mel_scaled.reshape(-1, 128, mel_features.shape[2])
 
-    # Combine the channels back into a multi-channel format
     data_scaled = np.stack((mfcc_scaled, mel_scaled), axis=-1)
 
     return data_scaled
 
-def split_audio(data, sr, seg_duration):
-    ##############       NO OVERLAP            #############
-    #seg_len = seg_duration * sr  # making sure segment is indeed 2 secs
-    #num_seg = int(np.ceil(len(data)/seg_len))
-    #segments = []
-    #for i in range(num_seg):
-    #    start = i*seg_len
-    #    end = min((i+1) * seg_len, len(data))
-    #    segments.append(data[start:end])
-    #return segments
-    #############        WITH OVERLAP          ############
-    overlap_duration = 0.5
+def split_audio(data, sr, seg_duration, overlap_duration):
     segment_length = round(seg_duration * sr)
     overlap_length = round(overlap_duration * sr)
     step_size = segment_length - overlap_length
-    
     segments = []
     start = 0
-    
     while start < len(data):
         end = min(start + segment_length, len(data))
         segments.append(data[start:end])
         start += step_size
-    
     return segments
 def get_features_segments(segments, sr): 
     features = []
@@ -250,29 +224,18 @@ if __name__ == "__main__":
     data_path = pd.read_csv('data_path.csv')
     print("\n#####Current data is read from CSV, if changes were made update the csv file#####\n\n")
     # Split the data into training and testing sets
-    #for path in data_path.Path:
-    #    delete_if_empty(path)
     train_paths, test_paths, train_emotions, test_emotions = train_test_split(data_path.Path, data_path.Emotions, random_state=0, shuffle=True)
     train_paths, x_val_paths, train_emotions, y_val_emotions = train_test_split(train_paths, train_emotions, test_size=0.2, random_state=0, shuffle=True)
-    # Iterate over training data paths and emotions
     for path, emotion in zip(train_paths, train_emotions):
-        # Extract features from the original audio sample
         features = get_features(path)
         for ele in features:
             X_train.append(ele)
             Y_train.append(emotion)
-    # Iterate over testing data paths and emotions
     for path, emotion in zip(test_paths, test_emotions):
-        # Extract features from the original audio sample
         features = get_clean_features(path)
         X_test.append(features)
         Y_test.append(emotion)
-        #features = get_features(path)
-        #for ele in features:
-        #    X_test.append(ele)
-        #    Y_test.append(emotion)
     for path, emotion in zip(x_val_paths, y_val_emotions):
-        # Extract features from the original audio sample
         features = get_features(path)
         for ele in features:
             X_val.append(ele)
@@ -286,7 +249,6 @@ if __name__ == "__main__":
     #np.savez('features.npz', X_train=X_train, X_test=X_test, X_val = X_val, Y_train = Y_train, Y_test = Y_test, Y_val = Y_val)
     #
     
-    # To load it back
    #print("########## THIS IS PRELOADED DATA, IF DATA WAS CHANGED NEED TO RUN FEATURE EXTRACTION AGAIN ##########")
    #X_train = np.load('features.npz')['X_train']
    #X_test = np.load('features.npz')['X_test']
@@ -311,55 +273,36 @@ if __name__ == "__main__":
     #x_val = np.expand_dims(x_val, -1)
 
     
-    
-    # Creating Validation data set
-    #x_train, x_val, y_train, y_val = train_test_split(X_train_scaled, y_train, test_size=0.2, random_state=0, shuffle=True)
-    
     model = Sequential()
-    
-    model.add(Conv2D(64, (3, 3), activation='relu',kernel_regularizer=l2(0.03),  input_shape=x_train.shape[1:]))
-    model.add(BatchNormalization())
-    model.add(MaxPooling2D((2, 2)))
+    input_shape = x_train.shape[1:]
+    model.add(Conv2D(filters=32, kernel_size=(3, 3), activation='leaky_relu',input_shape = x_train.shape[1:], padding='same'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Conv2D(filters=64, kernel_size=(3, 3), activation='leaky_relu',kernel_regularizer=l1(0.003), padding='same'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Dropout(0.25))
-    
-    model.add(Conv2D(32, (3, 3), activation='relu', kernel_regularizer=l1(0.03)))
-    model.add(BatchNormalization())
-    model.add(MaxPooling2D((2, 2)))
+    model.add(Conv2D(filters=128, kernel_size=(3, 3), activation='leaky_relu',kernel_regularizer=l2(0.003), padding='same'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Conv2D(filters=256, kernel_size=(3, 3), activation='leaky_relu', padding='same'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Dropout(0.25))
-    
-    model.add(Conv2D(32, (3, 3), activation='relu', kernel_regularizer=l2(0.03)))
-    model.add(BatchNormalization())
-    model.add(MaxPooling2D((2, 2)))
-    
-    
-    
-    
-    # Fully Co Block
+    model.add(Conv2D(filters=512, kernel_size=(3, 3), activation='leaky_relu',kernel_regularizer=l2(0.003), padding='same'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Flatten())
-    model.add(Dense(128, activation='relu'))
-    model.add(BatchNormalization())
+    model.add(Dense(512, activation='leaky_relu'))
     model.add(Dropout(0.3))
-    model.add(Dense(64, activation='relu'))
-    model.add(BatchNormalization())
-    model.add(Dropout(0.35))
-    model.add(Dense(32, activation='relu'))
-    model.add(BatchNormalization())
-    model.add(Dense(32, activation='relu'))
-    model.add(BatchNormalization())
-    model.add(Dropout(0.3))
-    
-    # Output L
+    model.add(Dense(256, activation='leaky_relu'))
     model.add(Dense(7, activation='softmax'))
-    model.compile(optimizer = 'adam' , loss = 'categorical_crossentropy' , metrics = ['accuracy'])
+    model.summary()
+    class_weights = compute_class_weight('balanced', classes=np.unique(Y_train), y=Y_train)
+    class_weights_dict = dict(enumerate(class_weights))
+    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
     
     
     model.summary()
     
     class_weights = compute_class_weight('balanced', classes=np.unique(Y_train), y=Y_train)
     class_weights_dict = dict(enumerate(class_weights))
-    rlrp = ReduceLROnPlateau(monitor='loss', factor=0.4, verbose=1, patience=2, min_lr=0.0000001)
-    history=model.fit(x_train, y_train, batch_size=128, epochs=40, validation_data=(x_val, y_val),class_weight=class_weights_dict)#, callbacks=[rlrp])
-    #history = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=25, shuffle=True)
+    history=model.fit(x_train, y_train, batch_size=128, epochs=50, validation_data=(x_val, y_val),class_weight=class_weights_dict)
     
     print("Accuracy of our model on VALIDATION data : " , model.evaluate(x_val,y_val)[1]*100 , "%")
     #print("Accuracy of our model on test data : " , model.evaluate(x_test,y_test)[1]*100 , "%")
@@ -375,31 +318,5 @@ if __name__ == "__main__":
     ###saving the model
     ##model.save('SER Model.keras')
     #model = load_model('SER Model.keras')
-    
-    long_angry = "DataSets/AngryInterview.mp3"
-    data, sample_rate = librosa.load(long_angry,offset=0.6, sr=16000)
-    segs = split_audio(data, sample_rate, 2)
-    seg_features = get_features_segments(segs, sample_rate)
-    padFeature(seg_features, x_train.shape[2])
-    seg_features = applyScaler(seg_features)
-    #seg_features = np.expand_dims(seg_features,-1)
-    print("Check segmentation prediction LONG INTERVIEW:\n")
-    predictions = model.predict(np.array(seg_features))
-    combined_prediction = combine_predictions(encoder.inverse_transform(predictions))
-    print("Predictions ang are: " + str(encoder.inverse_transform(predictions)))
-    print("Combined prediction is: " + str(combined_prediction))
-    
-    long_angry = "DataSets/WalterWhiteKnocks.mp3"
-    data, sample_rate = librosa.load(long_angry,offset=0.6, sr=16000)
-    segs = split_audio(data, sample_rate, 2)
-    seg_features = get_features_segments(segs, sample_rate)
-    padFeature(seg_features, x_train.shape[2])
-    seg_features = applyScaler(seg_features)
-    #seg_features = np.expand_dims(seg_features,-1)
-    print("Check segmentation prediction WALTER WHITE:\n")
-    predictions = model.predict(np.array(seg_features))
-    combined_prediction = combine_predictions(encoder.inverse_transform(predictions))
-    print("Predictions ang are: " + str(encoder.inverse_transform(predictions)))
-    print("Combined prediction is: " + str(combined_prediction))
   
 
